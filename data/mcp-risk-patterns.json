@@ -1,0 +1,82 @@
+{
+  "patterns": [
+    {
+      "namePattern": "*shell*",
+      "toolPatterns": ["execute*", "run*", "command*"],
+      "risk": "critical",
+      "reason": "Unrestricted shell command execution"
+    },
+    {
+      "namePattern": "*bash*",
+      "toolPatterns": ["execute*", "run*"],
+      "risk": "critical",
+      "reason": "Unrestricted bash execution"
+    },
+    {
+      "namePattern": "*terminal*",
+      "toolPatterns": ["execute*", "run*"],
+      "risk": "critical",
+      "reason": "Terminal access"
+    },
+    {
+      "namePattern": "*postgres*",
+      "toolPatterns": ["query*", "execute*"],
+      "risk": "high",
+      "reason": "PostgreSQL database access"
+    },
+    {
+      "namePattern": "*mysql*",
+      "toolPatterns": ["query*", "execute*"],
+      "risk": "high",
+      "reason": "MySQL database access"
+    },
+    {
+      "namePattern": "*sqlite*",
+      "toolPatterns": ["query*", "execute*"],
+      "risk": "high",
+      "reason": "SQLite database access"
+    },
+    {
+      "namePattern": "*filesystem*",
+      "toolPatterns": ["read*", "write*", "delete*"],
+      "risk": "medium",
+      "reason": "Filesystem read/write access"
+    },
+    {
+      "namePattern": "*puppeteer*",
+      "toolPatterns": ["navigate*", "evaluate*", "screenshot*"],
+      "risk": "high",
+      "reason": "Browser automation with script execution"
+    },
+    {
+      "namePattern": "*browser*",
+      "toolPatterns": ["navigate*", "click*"],
+      "risk": "medium",
+      "reason": "Browser automation"
+    },
+    {
+      "namePattern": "*fetch*",
+      "toolPatterns": ["fetch*", "get*", "post*"],
+      "risk": "medium",
+      "reason": "Network request capabilities"
+    },
+    {
+      "namePattern": "*http*",
+      "toolPatterns": ["request*", "get*", "post*"],
+      "risk": "medium",
+      "reason": "HTTP request capabilities"
+    },
+    {
+      "namePattern": "*git*",
+      "toolPatterns": ["clone*", "push*", "commit*"],
+      "risk": "medium",
+      "reason": "Git repository access"
+    },
+    {
+      "namePattern": "*github*",
+      "toolPatterns": ["create*", "list*", "search*"],
+      "risk": "medium",
+      "reason": "GitHub API access"
+    }
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "directories": [
+    {
+      "path": "~/.ssh",
+      "type": "SSH keys",
+      "risk": "critical",
+      "description": "SSH private keys and configuration"
+    },
+    {
+      "path": "~/.aws",
+      "type": "AWS credentials",
+      "risk": "critical",
+      "description": "AWS access keys and configuration"
+    },
+    {
+      "path": "~/.config/gcloud",
+      "type": "GCP credentials",
+      "risk": "critical",
+      "description": "Google Cloud credentials and configuration"
+    },
+    {
+      "path": "~/.azure",
+      "type": "Azure credentials",
+      "risk": "critical",
+      "description": "Azure credentials and configuration"
+    },
+    {
+      "path": "~/.kube",
+      "type": "Kubernetes config",
+      "risk": "high",
+      "description": "Kubernetes cluster access configuration"
+    },
+    {
+      "path": "~/.docker",
+      "type": "Docker config",
+      "risk": "high",
+      "description": "Docker credentials and configuration"
+    },
+    {
+      "path": "~/.gnupg",
+      "type": "GPG keys",
+      "risk": "critical",
+      "description": "GPG private keys and keyring"
+    },
+    {
+      "path": "~/.password-store",
+      "type": "Password store",
+      "risk": "critical",
+      "description": "Pass password manager storage"
+    }
+  ],
+  "files": [
+    {
+      "path": "~/.gitconfig",
+      "type": "Git config",
+      "risk": "low",
+      "description": "Git configuration (may contain tokens)"
+    },
+    {
+      "path": "~/.git-credentials",
+      "type": "Git credentials",
+      "risk": "high",
+      "description": "Stored Git credentials"
+    },
+    {
+      "path": "~/.netrc",
+      "type": "Netrc credentials",
+      "risk": "high",
+      "description": "Network authentication credentials"
+    },
+    {
+      "path": "~/.npmrc",
+      "type": "npm config",
+      "risk": "medium",
+      "description": "npm configuration (may contain auth tokens)"
+    },
+    {
+      "path": "~/.pypirc",
+      "type": "PyPI config",
+      "risk": "medium",
+      "description": "PyPI configuration (may contain auth tokens)"
+    }
+  ]
+}
