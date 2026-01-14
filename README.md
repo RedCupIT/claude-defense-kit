@@ -4,8 +4,14 @@
 
 ## Quick Start
 
+Until we publish to npm, run locally:
+
 ```bash
-npx claude-defense-kit
+git clone https://github.com/gobeyondidentity/claude-defense-kit.git
+cd claude-defense-kit
+npm install
+npm run build
+npm start
 ```
 
 This starts an interactive web app at http://localhost:3847 that:
@@ -15,6 +21,8 @@ This starts an interactive web app at http://localhost:3847 that:
 - Enables one-click remediation of each issue
 
 ## Installation
+
+Once published to npm, you'll be able to run:
 
 ```bash
 # Run directly (no install required)
