@@ -1,9 +1,6 @@
 # Claude Defense Kit
 
-Secure your Claude Code installation against prompt injection attacks.
-
-This tool scans your Claude Code configuration and shows what could be accessed
-if Claude Code is prompt-injected, with one-click remediation to lock it down.
+> **Claude Code is powerful—but with great power comes great attack surface.** If Claude gets prompt-injected, what can an attacker access? Your SSH keys? AWS credentials? Database connections? Claude Defense Kit scans your installation, shows you the blast radius, and lets you lock it down with one click.
 
 ## Quick Start
 
@@ -33,30 +30,48 @@ npm install -g claude-defense-kit
 # Interactive mode (default) - starts web server with live remediation
 claude-defense-kit
 
-# Terminal output (static, no server)
-claude-defense-kit --no-open
+# Scan a specific project's configuration
+claude-defense-kit -p /path/to/project
 
-# JSON output to stdout
-claude-defense-kit --format json
-
-# Save static HTML report to file
-claude-defense-kit --format html -o report.html
-
-# Verbose mode
-claude-defense-kit --verbose
 ```
 
 ### Options
 
 ```
--f, --format <type>  Output format: terminal, json, html (default: terminal)
--o, --output <file>  Write output to file instead of stdout
---no-open            Don't open browser (by default opens HTML report in browser)
---no-color           Disable colored output
---verbose            Show detailed scan progress
---help               Display help
---version            Display version
+-p, --project <path>  Target a specific project directory (edits project-level config)
+--help                Display help
+--version             Display version
 ```
+
+## Configuration Scopes
+
+Claude Code supports two configuration levels, and Claude Defense Kit can scan and remediate both:
+
+### Global Configuration (Default)
+
+By default, Claude Defense Kit scans and modifies your global configuration at:
+
+```
+~/.claude/settings.json
+```
+
+This affects Claude Code's behavior across all projects.
+
+### Project Configuration
+
+To scan and harden a specific project's configuration, use the `-p` flag:
+
+```bash
+claude-defense-kit -p /path/to/your/project
+```
+
+This targets the project-level configuration at:
+
+```
+<project>/.claude/settings.json
+```
+
+Project-level settings override global settings, allowing you to have stricter security for sensitive projects while keeping a more permissive global config for general use.
 
 ## What It Scans
 
@@ -91,7 +106,7 @@ claude-defense-kit --verbose
 
 ## Remediation
 
-The tool modifies `~/.claude/settings.json` to:
+The tool modifies your Claude Code settings to:
 
 - Deny access to sensitive file paths
 - Disable risky MCP servers
@@ -100,15 +115,6 @@ The tool modifies `~/.claude/settings.json` to:
 - Disable specific tools (Bash, Write, Edit, WebFetch)
 
 All changes can be undone with the "Undo" button.
-
-## Output
-
-The tool generates a risk score (0-100) and categorizes findings:
-
-- **Critical** (75-100): Immediate action recommended
-- **High** (50-74): Significant exposure detected
-- **Medium** (25-49): Some concerns identified
-- **Low** (0-24): Minimal exposure
 
 ## Privacy
 
