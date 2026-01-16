@@ -188,10 +188,6 @@ function generateFindingCard(issue: SecurityIssue): string {
   }', '${escapeHtml(issue.action.target)}')">
           ${actionLabel}
         </button>
-        <button class="btn-undo hidden btn-secondary shrink-0 px-3 py-1.5 rounded text-sm"
-          onclick="undoIssue('${escapeHtml(issue.id)}')">
-          Undo
-        </button>
       </div>
       <p class="text-sm text-[rgba(255,255,255,0.6)] mt-2">${escapeHtml(
         issue.description
@@ -2019,10 +2015,6 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
           <div class="flex-1 h-2 bg-[#21262d] rounded-full overflow-hidden">
             <div id="progress-bar" class="h-full bg-[var(--primary)] rounded-full transition-all duration-300" style="width: 0%"></div>
           </div>
-          <button id="undo-btn" onclick="undoLast()" disabled
-            class="px-3 py-1.5 bg-[#21262d] text-[#c9d1d9] border border-[#30363d] rounded text-sm font-medium hover:bg-[#30363d] transition disabled:opacity-50 disabled:cursor-not-allowed">
-            Undo
-          </button>
         </div>
       </div>
       
@@ -2137,18 +2129,27 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
 
     // Refresh merged permissions section dynamically
     async function refreshMergedPermissions() {
+      console.log('[DEBUG] refreshMergedPermissions called');
       try {
         const projectPath = selectedProjectPath || null;
         const url = projectPath
           ? '/api/effective-config?project=' + encodeURIComponent(projectPath)
           : '/api/effective-config';
+        console.log('[DEBUG] Fetching:', url);
         const res = await fetch(url);
         const effectiveConfig = await res.json();
+        console.log('[DEBUG] Got effective config:', effectiveConfig);
 
         // Generate the updated HTML for merged permissions
         const contentDiv = document.getElementById('effective-config-content');
+        console.log('[DEBUG] Found content div:', contentDiv);
         if (contentDiv) {
-          contentDiv.innerHTML = generateMergedPermissionsHtml(effectiveConfig);
+          const newHtml = generateMergedPermissionsHtml(effectiveConfig);
+          console.log('[DEBUG] Generated HTML length:', newHtml.length);
+          contentDiv.innerHTML = newHtml;
+          console.log('[DEBUG] Updated innerHTML');
+        } else {
+          console.error('[DEBUG] Could not find #effective-config-content');
         }
       } catch (err) {
         console.error('Failed to refresh merged permissions:', err);
@@ -2432,6 +2433,8 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
             markIssueFixed(id);
             state.lastAction = { id, actionType, target };
             showToast(data.message);
+            // Refresh merged permissions to show the new rule
+            await refreshMergedPermissions();
           } else {
             showToast(data.error || 'Failed to apply fix', 'error');
           }
@@ -2459,6 +2462,8 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
           markIssueUnfixed(state.lastAction.id);
           state.lastAction = null;
           showToast('Change reverted');
+          // Refresh merged permissions to reflect the reverted change
+          await refreshMergedPermissions();
         } else {
           showToast(data.error || 'Failed to undo', 'error');
         }
