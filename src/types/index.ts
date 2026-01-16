@@ -135,6 +135,8 @@ export interface ScanResults {
   integrity: McpIntegrityResult[];
   identityExposure: IdentityScanResult;
   claudeInstallation: ClaudeInstallationIntegrity;
+  configInventory?: ConfigInventory;
+  effectiveConfig?: EffectiveConfig;
 }
 
 // Partial scan results for aggregation
@@ -317,4 +319,226 @@ export interface SeverityProgress {
 // Extended scan results with issues
 export interface ScanResultsWithIssues extends ScanResults {
   issues: SecurityIssue[];
+}
+
+// ============================================
+// Configuration Inventory Types
+// ============================================
+
+// Platform types
+export type Platform = "darwin" | "linux" | "win32";
+
+// Configuration scope hierarchy (highest to lowest precedence)
+export type ConfigScopeType = "managed" | "local" | "project" | "user";
+
+// Managed settings (IT-deployed, highest precedence)
+export interface ManagedSettings {
+  // Permission overrides that can't be bypassed
+  permissions?: {
+    allow?: string[];
+    deny?: string[];
+    disableBypassPermissionsMode?: "disable";
+  };
+  // Sandbox enforcement
+  sandbox?: SandboxConfig;
+  // MCP server restrictions
+  allowedMcpServers?: Array<{ serverName: string }>;
+  deniedMcpServers?: Array<{ serverName: string }>;
+  // Plugin marketplace restrictions
+  strictKnownMarketplaces?: Array<{
+    source: string;
+    repo?: string;
+    url?: string;
+    package?: string;
+    path?: string;
+  }>;
+  // Hook restrictions
+  allowManagedHooksOnly?: boolean;
+  disableAllHooks?: boolean;
+  // Other managed settings
+  forceLoginMethod?: "claudeai" | "console";
+  forceLoginOrgUUID?: string;
+  companyAnnouncements?: string[];
+}
+
+// Managed MCP configuration
+export interface ManagedMcpConfig {
+  mcpServers?: Record<string, McpServerConfig>;
+}
+
+// User settings (~/.claude/settings.json)
+export interface UserSettings extends ClaudeCodeConfig {
+  // Additional user-specific settings
+  env?: Record<string, string>;
+  hooks?: Record<string, unknown>;
+  model?: string;
+  language?: string;
+  autoUpdatesChannel?: "stable" | "latest";
+  cleanupPeriodDays?: number;
+}
+
+// Project settings (.claude/settings.json or .claude/settings.local.json)
+export interface ProjectSettings extends ClaudeCodeConfig {
+  env?: Record<string, string>;
+  hooks?: Record<string, unknown>;
+}
+
+// User MCP config (~/.claude.json)
+export interface UserMcpConfig {
+  mcpServers?: Record<string, McpServerConfig>;
+  // Per-project MCP servers
+  projects?: Record<
+    string,
+    {
+      mcpServers?: Record<string, McpServerConfig>;
+      allowedTools?: string[];
+    }
+  >;
+  // User preferences
+  theme?: string;
+  notificationSettings?: unknown;
+  editorMode?: string;
+}
+
+// Project MCP config (.mcp.json)
+export interface ProjectMcpConfig {
+  mcpServers?: Record<string, McpServerConfig>;
+}
+
+// Managed configuration scope
+export interface ManagedConfigScope {
+  detected: boolean;
+  path: string;
+  settings: ManagedSettings | null;
+  mcpConfig: ManagedMcpConfig | null;
+  // What this managed config enforces
+  enforces: {
+    sandboxing: boolean;
+    permissionRestrictions: boolean;
+    mcpRestrictions: boolean;
+    pluginRestrictions: boolean;
+    hookRestrictions: boolean;
+  };
+}
+
+// User configuration scope
+export interface UserConfigScope {
+  settingsPath: string;
+  settings: UserSettings | null;
+  mcpPath: string;
+  mcpConfig: UserMcpConfig | null;
+  agentsPath: string;
+  agentCount: number;
+  claudeMdPath: string;
+  hasClaudeMd: boolean;
+}
+
+// Project configuration
+export interface ProjectConfigInfo {
+  path: string;
+  name: string; // Directory name
+  settings: {
+    shared: ProjectSettings | null; // .claude/settings.json
+    local: ProjectSettings | null; // .claude/settings.local.json
+  };
+  mcpConfig: ProjectMcpConfig | null; // .mcp.json
+  hasClaudeMd: boolean; // CLAUDE.md or .claude/CLAUDE.md
+  hasLocalClaudeMd: boolean; // CLAUDE.local.md
+  // Timestamps for freshness
+  lastModified: string | null;
+}
+
+// Complete configuration inventory
+export interface ConfigInventory {
+  // Scan metadata
+  scannedAt: string;
+  scanDurationMs: number;
+
+  // Platform info
+  platform: Platform;
+  claudeCodeVersion: string | null;
+  claudeCodeInstallPath: string | null;
+
+  // IT-managed scope (highest precedence)
+  managed: ManagedConfigScope;
+
+  // User scope
+  user: UserConfigScope;
+
+  // Discovered projects
+  projects: ProjectConfigInfo[];
+
+  // Summary flags
+  isITManaged: boolean; // True if managed config exists
+  projectCount: number;
+  hasUserConfig: boolean;
+}
+
+// Effective configuration for a specific context
+// (computed by merging scopes according to precedence)
+export interface EffectiveConfig {
+  // Which project this is for (null = global/user level)
+  projectPath: string | null;
+
+  // Merged permissions
+  permissions: {
+    allow: string[];
+    deny: string[];
+    // Track where each rule came from
+    sources: Array<{
+      rule: string;
+      scope: ConfigScopeType;
+      type: "allow" | "deny";
+    }>;
+  };
+
+  // Merged tool restrictions
+  tools: {
+    allowed: string[];
+    disallowed: string[];
+    sources: Array<{
+      tool: string;
+      scope: ConfigScopeType;
+      type: "allowed" | "disallowed";
+    }>;
+  };
+
+  // Merged MCP server restrictions (allowlist/denylist)
+  mcpRestrictions: {
+    allowed: string[];
+    denied: string[];
+    sources: Array<{
+      server: string;
+      scope: ConfigScopeType;
+      type: "allowed" | "denied";
+    }>;
+  };
+
+  // Merged sandbox config
+  sandbox: SandboxConfig | null;
+  sandboxSource: ConfigScopeType | null;
+
+  // Merged MCP servers
+  mcpServers: Record<string, McpServerConfig & { source: ConfigScopeType }>;
+
+  // Hook restrictions
+  hooks: {
+    allowManagedHooksOnly: boolean;
+    disableAllHooks: boolean;
+    source: ConfigScopeType | null;
+  };
+
+  // Bypass mode
+  bypassMode: {
+    disabled: boolean;
+    source: ConfigScopeType | null;
+  };
+
+  // What's shadowed (set at lower level but overridden by higher)
+  shadowedRules: Array<{
+    rule: string;
+    setAt: ConfigScopeType;
+    overriddenBy: ConfigScopeType;
+    type: "allow" | "deny" | "mcp" | "sandbox" | "tool";
+  }>;
 }

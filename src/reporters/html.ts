@@ -5,6 +5,9 @@ import type {
   McpIntegrityResult,
   IntegrityStatus,
   ClaudeCodeConfig,
+  ConfigInventory,
+  EffectiveConfig,
+  ConfigScopeType,
 } from "../types/index.js";
 import {
   readClaudeConfig,
@@ -148,12 +151,13 @@ function generateSection(
 ): string {
   const colorClass = titleColor || "text-[rgba(255,255,255,0.6)]";
   const idAttr = id ? ` id="${id}"` : "";
+  const contentIdAttr = id ? ` id="${id}-content"` : "";
   return `
     <section${idAttr} class="glass-card rounded-xl mb-4 overflow-hidden">
       <div class="px-5 py-3 border-b border-[rgba(255,255,255,0.1)]">
         <h2 class="text-sm font-semibold uppercase tracking-wide ${colorClass}">${title}</h2>
       </div>
-      <div class="px-5 py-4">
+      <div${contentIdAttr} class="px-5 py-4">
         ${content}
       </div>
     </section>`;
@@ -183,10 +187,6 @@ function generateFindingCard(issue: SecurityIssue): string {
     issue.action.type
   }', '${escapeHtml(issue.action.target)}')">
           ${actionLabel}
-        </button>
-        <button class="btn-undo hidden btn-secondary shrink-0 px-3 py-1.5 rounded text-sm"
-          onclick="undoIssue('${escapeHtml(issue.id)}')">
-          Undo
         </button>
       </div>
       <p class="text-sm text-[rgba(255,255,255,0.6)] mt-2">${escapeHtml(
@@ -546,6 +546,531 @@ function generateSecurityProfilesContent(): string {
   `;
 }
 
+// Get scope badge color
+function getScopeBadgeColor(scope: ConfigScopeType): string {
+  switch (scope) {
+    case "managed":
+      return "bg-[#f85149]";
+    case "local":
+      return "bg-[#a371f7]";
+    case "project":
+      return "bg-[#238636]";
+    case "user":
+      return "bg-[#58a6ff]";
+  }
+}
+
+// Get scope label
+function getScopeLabel(scope: ConfigScopeType): string {
+  switch (scope) {
+    case "managed":
+      return "IT-Managed";
+    case "local":
+      return "Local";
+    case "project":
+      return "Project";
+    case "user":
+      return "User";
+  }
+}
+
+// Generate IT-Managed banner
+function generateITManagedBanner(
+  inventory: ConfigInventory | undefined
+): string {
+  if (!inventory?.isITManaged) return "";
+
+  const enforces = inventory.managed.enforces;
+  const enforcementList: string[] = [];
+  if (enforces.sandboxing) enforcementList.push("Sandbox");
+  if (enforces.permissionRestrictions) enforcementList.push("Permissions");
+  if (enforces.mcpRestrictions) enforcementList.push("MCP Servers");
+  if (enforces.pluginRestrictions) enforcementList.push("Plugins");
+  if (enforces.hookRestrictions) enforcementList.push("Hooks");
+
+  return `
+    <div class="bg-[#f85149]/20 border border-[#f85149] rounded-xl p-4 mb-4">
+      <div class="flex items-start gap-3">
+        <span class="text-2xl">🏢</span>
+        <div class="flex-1">
+          <div class="font-semibold text-white mb-1">IT-Managed Deployment Detected</div>
+          <p class="text-sm text-[#8b949e] mb-2">
+            Your organization has deployed managed settings that cannot be overridden.
+          </p>
+          ${
+            enforcementList.length > 0
+              ? `
+          <div class="flex flex-wrap gap-2">
+            ${enforcementList
+              .map(
+                (e) =>
+                  `<span class="px-2 py-0.5 bg-[#f85149]/30 text-[#f85149] text-xs rounded">${e}</span>`
+              )
+              .join("")}
+          </div>
+          `
+              : ""
+          }
+          <div class="text-xs text-[#8b949e] mt-2">
+            <code>${escapeHtml(inventory.managed.path)}</code>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// Generate Configuration Inventory section
+function generateConfigInventoryContent(
+  inventory: ConfigInventory | undefined
+): string {
+  if (!inventory)
+    return '<p class="text-sm text-[#8b949e] italic">Configuration inventory not available.</p>';
+
+  const managedHtml = inventory.managed.detected
+    ? `
+    <div class="bg-[#0d1117] border border-[#30363d] rounded-lg p-4 mb-3">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="px-2 py-0.5 bg-[#f85149] text-white text-xs font-semibold rounded">MANAGED</span>
+        <span class="text-sm text-[#c9d1d9] font-medium">IT-Deployed Configuration</span>
+      </div>
+      <a href="/api/config/view?path=${encodeURIComponent(
+        inventory.managed.path
+      )}" target="_blank" class="text-xs text-[#58a6ff] hover:underline block mb-2">${escapeHtml(
+        inventory.managed.path
+      )}</a>
+      <div class="text-xs text-[#8b949e]">
+        ${
+          inventory.managed.settings
+            ? "✓ managed-settings.json"
+            : "✗ managed-settings.json"
+        }
+        ${inventory.managed.mcpConfig ? " · ✓ managed-mcp.json" : ""}
+      </div>
+    </div>
+  `
+    : `
+    <div class="bg-[#0d1117] border border-[#30363d] rounded-lg p-4 mb-3 opacity-50">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="px-2 py-0.5 bg-[#30363d] text-[#8b949e] text-xs font-semibold rounded">MANAGED</span>
+        <span class="text-sm text-[#8b949e]">Not Detected</span>
+      </div>
+      <p class="text-xs text-[#8b949e]">No IT-managed configuration found.</p>
+    </div>
+  `;
+
+  const userHtml = `
+    <div class="bg-[#0d1117] border border-[#30363d] rounded-lg p-4 mb-3">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="px-2 py-0.5 bg-[#58a6ff] text-white text-xs font-semibold rounded">USER</span>
+        <span class="text-sm text-[#c9d1d9] font-medium">User Configuration</span>
+      </div>
+      <div class="text-xs text-[#8b949e] space-y-1">
+        <div>${
+          inventory.user.settings ? "✓" : "✗"
+        } <a href="/api/config/view?path=${encodeURIComponent(
+    inventory.user.settingsPath
+  )}" target="_blank" class="text-[#58a6ff] hover:underline">${escapeHtml(
+    inventory.user.settingsPath.replace(process.env.HOME || "", "~")
+  )}</a></div>
+        <div>${
+          inventory.user.mcpConfig ? "✓" : "✗"
+        } <a href="/api/config/view?path=${encodeURIComponent(
+    inventory.user.mcpPath
+  )}" target="_blank" class="text-[#58a6ff] hover:underline">${escapeHtml(
+    inventory.user.mcpPath.replace(process.env.HOME || "", "~")
+  )}</a></div>
+        <div>${inventory.user.agentCount} agents · ${
+    inventory.user.hasClaudeMd ? "✓" : "✗"
+  } CLAUDE.md</div>
+      </div>
+    </div>
+  `;
+
+  const projectsHtml =
+    inventory.projects.length > 0
+      ? `
+    <div class="bg-[#0d1117] border border-[#30363d] rounded-lg p-4">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <span class="px-2 py-0.5 bg-[#238636] text-white text-xs font-semibold rounded">PROJECTS</span>
+          <span class="text-sm text-[#c9d1d9] font-medium">${
+            inventory.projects.length
+          } Discovered</span>
+        </div>
+        <button onclick="toggleProjectList()" class="text-xs text-[#58a6ff] hover:underline">
+          Show/Hide
+        </button>
+      </div>
+      <div id="project-list" class="hidden space-y-2 max-h-48 overflow-y-auto">
+        ${inventory.projects
+          .slice(0, 20)
+          .map(
+            (p) => `
+          <div class="flex items-center justify-between text-xs py-1 border-b border-[#30363d] last:border-0">
+            <code class="text-[#8b949e]">${escapeHtml(
+              p.path.replace(process.env.HOME || "", "~")
+            )}</code>
+            <div class="flex gap-1">
+              ${
+                p.settings.shared
+                  ? '<span class="text-[#238636]">✓</span>'
+                  : '<span class="text-[#30363d]">✗</span>'
+              }
+              ${p.hasClaudeMd ? '<span class="text-[#58a6ff]">📄</span>' : ""}
+            </div>
+          </div>
+        `
+          )
+          .join("")}
+        ${
+          inventory.projects.length > 20
+            ? `<div class="text-xs text-[#8b949e] pt-2">...and ${
+                inventory.projects.length - 20
+              } more</div>`
+            : ""
+        }
+      </div>
+    </div>
+  `
+      : `
+    <div class="bg-[#0d1117] border border-[#30363d] rounded-lg p-4 opacity-50">
+      <div class="flex items-center gap-2">
+        <span class="px-2 py-0.5 bg-[#30363d] text-[#8b949e] text-xs font-semibold rounded">PROJECTS</span>
+        <span class="text-sm text-[#8b949e]">None Discovered</span>
+      </div>
+    </div>
+  `;
+
+  return `
+    <p class="text-sm text-[#8b949e] mb-4">
+      Overview of all Claude Code configuration files on this system.
+    </p>
+    ${managedHtml}
+    ${userHtml}
+    ${projectsHtml}
+  `;
+}
+
+// Generate Effective Config section
+function generateEffectiveConfigContent(
+  effectiveConfig: EffectiveConfig | undefined,
+  inventory: ConfigInventory | undefined
+): string {
+  if (!effectiveConfig)
+    return '<p class="text-sm text-[#8b949e] italic">Effective configuration not available.</p>';
+
+  const permissionSources = effectiveConfig.permissions.sources || [];
+  const denyRules = permissionSources.filter((s) => s.type === "deny");
+  const allowRules = permissionSources.filter((s) => s.type === "allow");
+  const shadowedRules = effectiveConfig.shadowedRules || [];
+
+  const denyHtml =
+    denyRules.length > 0
+      ? denyRules
+          .map(
+            (s) => `
+    <div class="flex items-center justify-between py-1.5 border-b border-[#30363d] last:border-0">
+      <code class="text-sm text-[#f85149]">${escapeHtml(s.rule)}</code>
+      <span class="px-2 py-0.5 ${getScopeBadgeColor(
+        s.scope
+      )} text-white text-xs rounded">${getScopeLabel(s.scope)}</span>
+    </div>
+  `
+          )
+          .join("")
+      : '<p class="text-xs text-[#8b949e] italic">No deny rules configured.</p>';
+
+  const allowHtml =
+    allowRules.length > 0
+      ? allowRules
+          .map(
+            (s) => `
+    <div class="flex items-center justify-between py-1.5 border-b border-[#30363d] last:border-0">
+      <code class="text-sm text-[#3fb950]">${escapeHtml(s.rule)}</code>
+      <span class="px-2 py-0.5 ${getScopeBadgeColor(
+        s.scope
+      )} text-white text-xs rounded">${getScopeLabel(s.scope)}</span>
+    </div>
+  `
+          )
+          .join("")
+      : '<p class="text-xs text-[#8b949e] italic">No allow rules configured.</p>';
+
+  const shadowedHtml =
+    shadowedRules.length > 0
+      ? `
+    <div class="mt-4 pt-4 border-t border-[#30363d]">
+      <div class="text-xs font-semibold text-[#d29922] uppercase mb-2">⚠️ Shadowed Rules</div>
+      <p class="text-xs text-[#8b949e] mb-2">These rules are set but overridden by higher-precedence config:</p>
+      ${shadowedRules
+        .map(
+          (s) => `
+        <div class="flex items-center gap-2 py-1 text-xs">
+          <code class="text-[#8b949e] line-through">${escapeHtml(s.rule)}</code>
+          <span class="text-[#8b949e]">set at ${getScopeLabel(
+            s.setAt
+          )}, overridden by ${getScopeLabel(s.overriddenBy)}</span>
+        </div>
+      `
+        )
+        .join("")}
+    </div>
+  `
+      : "";
+
+  const sandboxHtml = effectiveConfig.sandbox
+    ? `
+    <div class="bg-[#0d1117] border border-[#30363d] rounded-lg p-4 mt-4">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-sm font-semibold text-[#c9d1d9]">Sandbox Configuration</span>
+        <span class="px-2 py-0.5 ${getScopeBadgeColor(
+          effectiveConfig.sandboxSource!
+        )} text-white text-xs rounded">${getScopeLabel(
+        effectiveConfig.sandboxSource!
+      )}</span>
+      </div>
+      <div class="text-xs text-[#8b949e]">
+        <div>Enabled: <span class="${
+          effectiveConfig.sandbox.enabled ? "text-[#3fb950]" : "text-[#f85149]"
+        }">${effectiveConfig.sandbox.enabled ? "Yes" : "No"}</span></div>
+      </div>
+    </div>
+  `
+    : "";
+
+  return `
+    <p class="text-sm text-[#8b949e] mb-4">
+      The merged configuration that Claude Code actually uses, with source attribution.
+    </p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="bg-[#0d1117] border border-[#30363d] rounded-lg p-4">
+        <div class="text-xs font-semibold text-[#f85149] uppercase mb-2">Deny Rules (${
+          denyRules.length
+        })</div>
+        ${denyHtml}
+      </div>
+      <div class="bg-[#0d1117] border border-[#30363d] rounded-lg p-4">
+        <div class="text-xs font-semibold text-[#3fb950] uppercase mb-2">Allow Rules (${
+          allowRules.length
+        })</div>
+        ${allowHtml}
+      </div>
+    </div>
+    ${shadowedHtml}
+    ${sandboxHtml}
+    ${generateToolRestrictionsHtml(effectiveConfig)}
+    ${generateMcpRestrictionsHtml(effectiveConfig)}
+    ${generateSecuritySettingsHtml(effectiveConfig)}
+  `;
+}
+
+// Generate tool restrictions HTML for effective config
+function generateToolRestrictionsHtml(
+  effectiveConfig: EffectiveConfig
+): string {
+  const toolSources = effectiveConfig.tools?.sources || [];
+  const disallowed = toolSources.filter((s) => s.type === "disallowed");
+  const allowed = toolSources.filter((s) => s.type === "allowed");
+
+  if (disallowed.length === 0 && allowed.length === 0) return "";
+
+  const disallowedHtml =
+    disallowed.length > 0
+      ? disallowed
+          .map(
+            (s) => `
+      <div class="flex items-center justify-between py-1.5 border-b border-[#30363d] last:border-0">
+        <code class="text-sm text-[#f85149]">${escapeHtml(s.tool)}</code>
+        <span class="px-2 py-0.5 ${getScopeBadgeColor(
+          s.scope
+        )} text-white text-xs rounded">${getScopeLabel(s.scope)}</span>
+      </div>
+    `
+          )
+          .join("")
+      : '<p class="text-xs text-[#8b949e] italic">No tools blocked.</p>';
+
+  const allowedHtml =
+    allowed.length > 0
+      ? allowed
+          .map(
+            (s) => `
+      <div class="flex items-center justify-between py-1.5 border-b border-[#30363d] last:border-0">
+        <code class="text-sm text-[#3fb950]">${escapeHtml(s.tool)}</code>
+        <span class="px-2 py-0.5 ${getScopeBadgeColor(
+          s.scope
+        )} text-white text-xs rounded">${getScopeLabel(s.scope)}</span>
+      </div>
+    `
+          )
+          .join("")
+      : '<p class="text-xs text-[#8b949e] italic">No tools explicitly allowed.</p>';
+
+  return `
+    <div class="bg-[#0d1117] border border-[#30363d] rounded-lg p-4 mt-4">
+      <div class="text-xs font-semibold text-[#c9d1d9] uppercase mb-3">Tool Restrictions</div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <div class="text-xs font-semibold text-[#f85149] mb-2">Blocked (${disallowed.length})</div>
+          ${disallowedHtml}
+        </div>
+        <div>
+          <div class="text-xs font-semibold text-[#3fb950] mb-2">Allowed (${allowed.length})</div>
+          ${allowedHtml}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Generate MCP server restrictions HTML for effective config
+function generateMcpRestrictionsHtml(effectiveConfig: EffectiveConfig): string {
+  const mcpSources = effectiveConfig.mcpRestrictions?.sources || [];
+  const denied = mcpSources.filter((s) => s.type === "denied");
+  const allowed = mcpSources.filter((s) => s.type === "allowed");
+
+  if (denied.length === 0 && allowed.length === 0) return "";
+
+  const deniedHtml =
+    denied.length > 0
+      ? denied
+          .map(
+            (s) => `
+      <div class="flex items-center justify-between py-1.5 border-b border-[#30363d] last:border-0">
+        <code class="text-sm text-[#f85149]">${escapeHtml(s.server)}</code>
+        <span class="px-2 py-0.5 ${getScopeBadgeColor(
+          s.scope
+        )} text-white text-xs rounded">${getScopeLabel(s.scope)}</span>
+      </div>
+    `
+          )
+          .join("")
+      : '<p class="text-xs text-[#8b949e] italic">No servers blocked.</p>';
+
+  const allowedHtml =
+    allowed.length > 0
+      ? allowed
+          .map(
+            (s) => `
+      <div class="flex items-center justify-between py-1.5 border-b border-[#30363d] last:border-0">
+        <code class="text-sm text-[#3fb950]">${escapeHtml(s.server)}</code>
+        <span class="px-2 py-0.5 ${getScopeBadgeColor(
+          s.scope
+        )} text-white text-xs rounded">${getScopeLabel(s.scope)}</span>
+      </div>
+    `
+          )
+          .join("")
+      : '<p class="text-xs text-[#8b949e] italic">No allowlist configured.</p>';
+
+  return `
+    <div class="bg-[#0d1117] border border-[#30363d] rounded-lg p-4 mt-4">
+      <div class="text-xs font-semibold text-[#c9d1d9] uppercase mb-3">MCP Server Restrictions</div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <div class="text-xs font-semibold text-[#f85149] mb-2">Denied (${denied.length})</div>
+          ${deniedHtml}
+        </div>
+        <div>
+          <div class="text-xs font-semibold text-[#3fb950] mb-2">Allowed (${allowed.length})</div>
+          ${allowedHtml}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Generate security settings HTML (hooks, bypass mode)
+function generateSecuritySettingsHtml(
+  effectiveConfig: EffectiveConfig
+): string {
+  const hooks = effectiveConfig.hooks;
+  const bypassMode = effectiveConfig.bypassMode;
+
+  const hasHookSettings =
+    hooks?.allowManagedHooksOnly || hooks?.disableAllHooks;
+  const hasBypassSetting = bypassMode?.disabled;
+
+  if (!hasHookSettings && !hasBypassSetting) return "";
+
+  const items: string[] = [];
+
+  if (hooks?.disableAllHooks) {
+    items.push(`
+      <div class="flex items-center justify-between py-1.5 border-b border-[#30363d] last:border-0">
+        <span class="text-sm text-[#c9d1d9]">All Hooks Disabled</span>
+        <span class="px-2 py-0.5 ${getScopeBadgeColor(
+          hooks.source!
+        )} text-white text-xs rounded">${getScopeLabel(hooks.source!)}</span>
+      </div>
+    `);
+  } else if (hooks?.allowManagedHooksOnly) {
+    items.push(`
+      <div class="flex items-center justify-between py-1.5 border-b border-[#30363d] last:border-0">
+        <span class="text-sm text-[#c9d1d9]">Managed Hooks Only</span>
+        <span class="px-2 py-0.5 ${getScopeBadgeColor(
+          hooks.source!
+        )} text-white text-xs rounded">${getScopeLabel(hooks.source!)}</span>
+      </div>
+    `);
+  }
+
+  if (bypassMode?.disabled) {
+    items.push(`
+      <div class="flex items-center justify-between py-1.5 border-b border-[#30363d] last:border-0">
+        <span class="text-sm text-[#c9d1d9]">Bypass Mode Disabled</span>
+        <span class="px-2 py-0.5 ${getScopeBadgeColor(
+          bypassMode.source!
+        )} text-white text-xs rounded">${getScopeLabel(
+      bypassMode.source!
+    )}</span>
+      </div>
+    `);
+  }
+
+  return `
+    <div class="bg-[#0d1117] border border-[#30363d] rounded-lg p-4 mt-4">
+      <div class="text-xs font-semibold text-[#c9d1d9] uppercase mb-3">Security Settings</div>
+      ${items.join("")}
+    </div>
+  `;
+}
+
+// Generate scope selector dropdown
+function generateScopeSelector(
+  inventory: ConfigInventory | undefined,
+  currentScope: { type: string; projectPath?: string }
+): string {
+  if (!inventory || inventory.projects.length === 0) return "";
+
+  const options = [
+    `<option value="" ${
+      currentScope.type === "global" ? "selected" : ""
+    }>Global (All Projects)</option>`,
+    ...inventory.projects
+      .slice(0, 20)
+      .map(
+        (p) =>
+          `<option value="${escapeHtml(p.path)}" ${
+            currentScope.type === "project" &&
+            currentScope.projectPath === p.path
+              ? "selected"
+              : ""
+          }>${escapeHtml(p.name)}</option>`
+      ),
+  ].join("");
+
+  return `
+    <div class="flex items-center gap-2">
+      <span class="text-xs text-[#8b949e]">Scope:</span>
+      <select id="scope-selector" onchange="switchScope(this.value)" 
+        class="px-2 py-1 bg-[#21262d] border border-[#30363d] rounded text-xs text-[#c9d1d9] focus:border-[#58a6ff] focus:outline-none">
+        ${options}
+      </select>
+    </div>
+  `;
+}
+
 // Generate a severity section (always shown, even if empty)
 function generateSeveritySection(
   risk: "high" | "medium" | "low",
@@ -723,41 +1248,6 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
         ${instStatusExplanation}
       </div>
       <p class="text-xs text-[#8b949e]">↳ We track installation integrity to detect tampering or unexpected changes.</p>
-    </div>
-
-    <!-- Configuration Scope -->
-    <div class="mb-4 pb-4 border-b border-[#30363d]">
-      <div class="text-xs uppercase tracking-wide text-[#8b949e] mb-2">Configuration Scope</div>
-      <div class="bg-[#0d1117] border border-[#30363d] rounded-lg p-4">
-        <div class="flex items-start gap-3 mb-3">
-          <span class="px-2 py-1 ${
-            isProjectScope ? "bg-[#238636]" : "bg-[#58a6ff]"
-          } text-white text-xs font-semibold rounded shrink-0">${scopeLabel}</span>
-          <div>
-            <div class="text-sm text-[#c9d1d9] font-medium">Currently Scanning: ${
-              isProjectScope ? "Project" : "Global"
-            } Settings</div>
-            <a href="/api/config/view" target="_blank" class="text-[#58a6ff] hover:underline font-mono text-xs">${escapeHtml(
-              actualConfigPath
-            )}</a>
-          </div>
-        </div>
-        <p class="text-xs text-[#8b949e] mb-3">
-          ${scopeDescription}. 
-          Click "Fix" on issues below to modify it.
-        </p>
-        <div class="border-t border-[#30363d] pt-3 mt-3">
-          <div class="flex items-center justify-between">
-            <div>
-              <div class="text-xs text-[#8b949e] mb-1">📁 Want to scan a specific project instead?</div>
-              <code class="text-xs text-[#58a6ff] bg-[rgba(0,0,0,0.3)] px-2 py-1 rounded">npx claude-defense-kit --project ~/path</code>
-            </div>
-            <button onclick="showConfigHierarchyModal()" class="text-xs text-[#58a6ff] hover:underline flex items-center gap-1">
-              <span>ℹ️</span> Learn about config hierarchy
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
 
     <!-- Scan Results Summary -->
@@ -1069,7 +1559,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
   </style>
 </head>
 <body class="text-white min-h-screen font-sans">
-  <!-- Navigation Sidebar -->
+  <!-- Navigation Sidebar - Wizard Steps -->
   <nav id="sidebar" class="glass-sidebar fixed left-0 top-0 h-full w-56 pt-6 px-4 overflow-y-auto z-50">
     <!-- Logo -->
     <div class="flex flex-col items-center mb-6 pb-4 border-b border-[rgba(255,255,255,0.1)]">
@@ -1077,140 +1567,504 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
       <span class="text-sm font-semibold text-white tracking-tight">Claude Defense Kit</span>
     </div>
     
-    <div class="text-xs font-semibold text-[rgba(255,255,255,0.5)] uppercase tracking-wider mb-3 px-2">Navigation</div>
-    <a href="#what-we-scanned" class="nav-link">What We Scanned</a>
-    <a href="#whats-at-risk" class="nav-link">What's at Risk</a>
-    <a href="#how-to-fix" class="nav-link">How to Fix</a>
-    <div class="border-t border-[rgba(255,255,255,0.2)] my-3 mx-2"></div>
-    <a href="#high-risk" class="nav-link">High Risk (${highIssues.length})</a>
-    <a href="#medium-risk" class="nav-link">Medium Risk (${
-      mediumIssues.length
-    })</a>
-    <a href="#low-risk" class="nav-link">Low Risk (${lowIssues.length})</a>
-    <div class="border-t border-[rgba(255,255,255,0.2)] my-3 mx-2"></div>
-    <a href="#tool-restrictions" class="nav-link">Tool Restrictions</a>
-    <a href="#bash-restrictions" class="nav-link">Bash Restrictions</a>
-    <a href="#sandbox-config" class="nav-link">Sandbox Config</a>
-    <a href="#directory-access" class="nav-link">Directory Access</a>
-    <a href="#security-profiles" class="nav-link">Security Profiles</a>
-    <a href="#mcp-integrity" class="nav-link">MCP Integrity</a>
-    <div class="border-t border-[rgba(255,255,255,0.2)] my-3 mx-2"></div>
-    <a href="#enterprise" class="nav-link">Enterprise</a>
+    <div class="text-xs font-semibold text-[rgba(255,255,255,0.5)] uppercase tracking-wider mb-3 px-2">Setup Wizard</div>
+    
+    <!-- Step 1: Environment Overview -->
+    <div class="wizard-step-nav active" data-step="1" onclick="goToStep(1)">
+      <div class="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-[rgba(255,255,255,0.05)] transition">
+        <div class="step-indicator w-6 h-6 rounded-full bg-[var(--primary)] text-[#0a2020] flex items-center justify-center text-xs font-bold">1</div>
+        <span class="text-sm text-white">Environment Overview</span>
+      </div>
+    </div>
+    
+    <!-- Step 2: Select Scope -->
+    <div class="wizard-step-nav" data-step="2" onclick="goToStep(2)">
+      <div class="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-[rgba(255,255,255,0.05)] transition">
+        <div class="step-indicator w-6 h-6 rounded-full bg-[rgba(255,255,255,0.2)] text-white flex items-center justify-center text-xs font-bold">2</div>
+        <span class="text-sm text-[rgba(255,255,255,0.6)]">Select Scope</span>
+      </div>
+    </div>
+    
+    <!-- Step 3: Remediation -->
+    <div class="wizard-step-nav" data-step="3" onclick="goToStep(3)">
+      <div class="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-[rgba(255,255,255,0.05)] transition">
+        <div class="step-indicator w-6 h-6 rounded-full bg-[rgba(255,255,255,0.2)] text-white flex items-center justify-center text-xs font-bold">3</div>
+        <span class="text-sm text-[rgba(255,255,255,0.6)]">Remediation</span>
+      </div>
+    </div>
+    
   </nav>
 
   <!-- Main Content Wrapper (offset from sidebar) -->
   <div class="ml-56 min-h-screen relative z-10">
   
-  <!-- Header -->
-  <header class="bg-[rgba(255,255,255,0.04)] border-b border-[rgba(255,255,255,0.1)] px-6 py-6">
-    <div class="max-w-4xl">
-      <h1 class="text-2xl font-bold mb-2">Claude Defense Kit</h1>
-      <p class="text-sm text-[rgba(255,255,255,0.6)] mb-1">
-        Secure your Claude Code installation. This report shows what could be accessed
-        if Claude Code is prompt-injected, with one-click fixes to lock it down.
-      </p>
-      <p class="text-xs text-[rgba(255,255,255,0.4)]">
-        Scanned at ${new Date().toLocaleString()}
-      </p>
-    </div>
-  </header>
 
-  <!-- Main Content -->
-  <main class="max-w-4xl px-6 py-6">
-    <!-- What We Scanned -->
-    ${generateSection(
-      "WHAT WE SCANNED",
-      whatWeScannedContent,
-      undefined,
-      "what-we-scanned"
-    )}
-
-    <!-- What's at Risk -->
-    ${generateSection(
-      "WHAT'S AT RISK",
-      whatsAtRiskContent,
-      undefined,
-      "whats-at-risk"
-    )}
-
-    <!-- How to Fix -->
-    ${generateSection("HOW TO FIX", howToFixContent, undefined, "how-to-fix")}
-  </main>
-
-  <!-- Sticky Progress Bar -->
-  <div class="sticky top-0 z-40 bg-[rgba(15,39,39,0.95)] backdrop-blur-sm border-b border-[rgba(255,255,255,0.1)] py-3">
-    <div class="max-w-4xl px-6">
-      <div class="flex items-center gap-4">
-        <span class="text-sm text-[#8b949e]">Progress:</span>
-        <span class="text-sm text-[#c9d1d9]" id="progress-text">0/${totalIssues} fixed</span>
-        <div class="flex-1 h-2 bg-[#21262d] rounded-full overflow-hidden">
-          <div id="progress-bar" class="h-full bg-[#58a6ff] rounded-full transition-all duration-300" style="width: 0%"></div>
+  <!-- Wizard Container -->
+  <div id="wizard-container" class="max-w-4xl px-6 py-6">
+    
+    <!-- STEP 1: Environment Overview -->
+    <div class="wizard-step" data-step="1">
+      
+      <div class="text-center mb-8">
+        <h2 class="text-2xl font-bold text-white mb-2">Environment Overview</h2>
+        <p class="text-[rgba(255,255,255,0.6)]">Here's what we found on your system</p>
+      </div>
+      
+      <!-- IT-Managed Banner -->
+      ${generateITManagedBanner(results.configInventory)}
+      
+      <!-- ========== PART 1: WHAT WE DISCOVERED ========== -->
+      <div class="mb-8">
+        <div class="text-xs font-semibold text-[rgba(255,255,255,0.4)] uppercase tracking-wider mb-4">What We Discovered</div>
+        
+        <!-- Claude Code Installation -->
+        <div class="glass-card rounded-xl p-5 mb-4">
+          <div class="text-sm font-semibold text-[rgba(255,255,255,0.5)] uppercase tracking-wider mb-3">Claude Code Installation</div>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-[#c9d1d9] font-medium">Claude Code</span>
+            <span class="text-[#8b949e]">v${escapeHtml(version)}</span>
+            ${instBadge}
+            ${instStatusExplanation}
+          </div>
+          <p class="text-xs text-[#8b949e]">↳ We track installation integrity to detect tampering or unexpected changes.</p>
         </div>
-        <button id="undo-btn" onclick="undoLast()" disabled
-          class="px-3 py-1.5 bg-[#21262d] text-[#c9d1d9] border border-[#30363d] rounded text-sm font-medium hover:bg-[#30363d] transition disabled:opacity-50 disabled:cursor-not-allowed">
-          Undo Last
+        
+        <!-- Identity -->
+        ${
+          identityLine
+            ? `
+        <div class="glass-card rounded-xl p-5 mb-4">
+          <div class="text-sm font-semibold text-[rgba(255,255,255,0.5)] uppercase tracking-wider mb-3">Your Identity</div>
+          ${identityLine}
+          <p class="text-xs text-[#8b949e] mt-1">↳ This is the account Claude Code uses. If compromised, attackers could act as you.</p>
+        </div>
+        `
+            : ""
+        }
+        
+        <!-- Configurations (Combined Hierarchy + Discovered) -->
+        <div class="glass-card rounded-xl p-5 mb-4">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <div class="text-sm font-semibold text-[rgba(255,255,255,0.5)] uppercase tracking-wider">Claude Code Configurations</div>
+              <p class="text-xs text-[rgba(255,255,255,0.4)] mt-1">These JSON files control Claude Code's permissions, allowed tools, MCP servers, and security settings. Higher-precedence configs (like IT-Managed) override lower ones.</p>
+            </div>
+            <button onclick="showConfigHierarchyModal()" class="text-xs text-[#58a6ff] hover:underline flex items-center gap-1 shrink-0">
+              <span>ℹ️</span> Learn about hierarchy
+            </button>
+          </div>
+          
+          <!-- Managed Config -->
+          <div class="border-l-4 ${
+            results.configInventory?.isITManaged
+              ? "border-[#f85149]"
+              : "border-[#30363d]"
+          } pl-4 mb-4">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="px-2 py-0.5 ${
+                results.configInventory?.isITManaged
+                  ? "bg-[#f85149]"
+                  : "bg-[#30363d]"
+              } text-white text-xs font-semibold rounded">MANAGED</span>
+              <span class="text-sm ${
+                results.configInventory?.isITManaged
+                  ? "text-white"
+                  : "text-[#8b949e]"
+              }">IT-Deployed (Highest Priority)</span>
+            </div>
+            ${
+              results.configInventory?.isITManaged
+                ? `<a href="/api/config/view?path=${encodeURIComponent(
+                    results.configInventory.managed.path
+                  )}" target="_blank" class="text-xs text-[#58a6ff] hover:underline">${escapeHtml(
+                    results.configInventory.managed.path
+                  )}</a>`
+                : '<p class="text-xs text-[#8b949e]">Not detected</p>'
+            }
+          </div>
+          
+          <!-- User Config -->
+          <div class="border-l-4 border-[#58a6ff] pl-4 mb-4">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="px-2 py-0.5 bg-[#58a6ff] text-white text-xs font-semibold rounded">USER</span>
+              <span class="text-sm text-white">Global Settings</span>
+            </div>
+            <div class="text-xs text-[#8b949e] space-y-1">
+              <div>${
+                results.configInventory?.user.settings ? "✓" : "✗"
+              } <a href="/api/config/view?path=${encodeURIComponent(
+    results.configInventory?.user.settingsPath || ""
+  )}" target="_blank" class="text-[#58a6ff] hover:underline">${escapeHtml(
+    (results.configInventory?.user.settingsPath || "").replace(
+      process.env.HOME || "",
+      "~"
+    )
+  )}</a></div>
+              <div>${
+                results.configInventory?.user.mcpConfig ? "✓" : "✗"
+              } <a href="/api/config/view?path=${encodeURIComponent(
+    results.configInventory?.user.mcpPath || ""
+  )}" target="_blank" class="text-[#58a6ff] hover:underline">${escapeHtml(
+    (results.configInventory?.user.mcpPath || "").replace(
+      process.env.HOME || "",
+      "~"
+    )
+  )}</a></div>
+            </div>
+          </div>
+          
+          <!-- Project Configs -->
+          <div class="border-l-4 border-[#238636] pl-4">
+            <div class="flex items-center justify-between mb-1">
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 bg-[#238636] text-white text-xs font-semibold rounded">PROJECT</span>
+                <span class="text-sm text-white">${
+                  results.configInventory?.projects.length || 0
+                } Project Configs</span>
+              </div>
+              ${
+                (results.configInventory?.projects.length || 0) > 0
+                  ? '<button onclick="toggleProjectList()" class="text-xs text-[#58a6ff] hover:underline">Show/Hide</button>'
+                  : ""
+              }
+            </div>
+            <code class="text-xs text-[#8b949e]">.claude/settings.json</code> or <code class="text-xs text-[#a371f7]">.claude/settings.local.json</code>
+            ${
+              (results.configInventory?.projects.length || 0) > 0
+                ? `
+            <div id="project-list" class="hidden mt-2 space-y-1 max-h-32 overflow-y-auto">
+              ${results.configInventory?.projects
+                .slice(0, 10)
+                .map((p) => {
+                  // Show both shared and local if they exist
+                  const hasShared = p.settings.shared;
+                  const hasLocal = p.settings.local;
+                  const badges = [];
+                  if (hasShared)
+                    badges.push(
+                      '<span class="px-1 py-0.5 bg-[#238636] text-white text-[10px] rounded">shared</span>'
+                    );
+                  if (hasLocal)
+                    badges.push(
+                      '<span class="px-1 py-0.5 bg-[#a371f7] text-white text-[10px] rounded">local</span>'
+                    );
+                  const settingsFile = hasLocal
+                    ? "/.claude/settings.local.json"
+                    : hasShared
+                    ? "/.claude/settings.json"
+                    : "/.claude/settings.json";
+                  return `
+                <div class="text-xs py-0.5 flex items-center gap-2">
+                  <a href="/api/config/view?path=${encodeURIComponent(
+                    p.path + settingsFile
+                  )}" target="_blank" class="text-[#58a6ff] hover:underline">${escapeHtml(
+                    p.path.replace(process.env.HOME || "", "~")
+                  )}</a>
+                  ${badges.join(" ")}
+                </div>
+              `;
+                })
+                .join("")}
+              ${
+                (results.configInventory?.projects.length || 0) > 10
+                  ? `<div class="text-xs text-[#8b949e]">...and ${
+                      (results.configInventory?.projects.length || 0) - 10
+                    } more</div>`
+                  : ""
+              }
+            </div>
+            `
+                : ""
+            }
+          </div>
+        </div>
+        
+      </div>
+
+      <!-- ========== PART 2: SECURITY SCAN RESULTS ========== -->
+      <div class="mb-6">
+        <div class="text-xs font-semibold text-[rgba(255,255,255,0.4)] uppercase tracking-wider mb-4">Security Scan Results</div>
+        
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-3 gap-4 mb-4">
+          <div class="glass-card rounded-xl p-5 text-center">
+            <div class="text-3xl font-bold text-white mb-1">${
+              results.configInventory?.isITManaged ? "1" : "0"
+            }</div>
+            <div class="text-sm text-[rgba(255,255,255,0.6)]">Managed Config</div>
+          </div>
+          <div class="glass-card rounded-xl p-5 text-center">
+            <div class="text-3xl font-bold text-white mb-1">${
+              results.configInventory?.projects.length || 0
+            }</div>
+            <div class="text-sm text-[rgba(255,255,255,0.6)]">Projects Found</div>
+          </div>
+          <div class="glass-card rounded-xl p-5 text-center">
+            <div class="text-3xl font-bold ${
+              totalIssues > 0 ? "text-[#f85149]" : "text-[#3fb950]"
+            } mb-1">${totalIssues}</div>
+            <div class="text-sm text-[rgba(255,255,255,0.6)]">Issues Found</div>
+          </div>
+        </div>
+        
+        <!-- Issue Breakdown -->
+        <div class="glass-card rounded-xl p-5 mb-4">
+          <div class="text-sm font-semibold text-[rgba(255,255,255,0.5)] uppercase tracking-wider mb-3">Issue Breakdown</div>
+          <p class="text-sm text-[#c9d1d9] mb-3">
+            Found <strong>${totalIssues}</strong> security ${
+    totalIssues === 1 ? "issue" : "issues"
+  }:
+          </p>
+          ${issueBreakdown}
+        </div>
+        
+        <!-- Why This Matters -->
+        <div class="glass-card rounded-xl p-5 mb-4">
+          <div class="flex items-start gap-3">
+            <span class="text-[#d29922] text-lg">💡</span>
+            <div>
+              <div class="text-sm font-medium text-[#c9d1d9] mb-1">Why This Matters</div>
+              <p class="text-xs text-[#8b949e]">
+                If Claude Code is compromised via prompt injection, an attacker could access everything shown below.
+                This scan identifies what's at risk and helps you lock it down with one-click fixes.
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <!-- What's at Risk -->
+        ${generateSection(
+          "WHAT'S AT RISK",
+          whatsAtRiskContent,
+          undefined,
+          "whats-at-risk"
+        )}
+      </div>
+      
+      <!-- Navigation -->
+      <div class="flex justify-end mt-6">
+        <button onclick="goToStep(2)" class="btn-gradient px-6 py-3 rounded-lg font-semibold">
+          Continue →
         </button>
       </div>
     </div>
-  </div>
-
-  <!-- Severity Sections -->
-  <div class="max-w-4xl px-6 py-6">
-    ${generateSeveritySection("high", highIssues)}
-    ${generateSeveritySection("medium", mediumIssues)}
-    ${generateSeveritySection("low", lowIssues)}
-
-    <!-- Tool Restrictions -->
-    ${generateSection(
-      "TOOL RESTRICTIONS",
-      toolRestrictionsContent,
-      undefined,
-      "tool-restrictions"
-    )}
-
-    <!-- Bash Command Restrictions -->
-    ${generateSection(
-      "BASH COMMAND RESTRICTIONS",
-      bashRestrictionsContent,
-      undefined,
-      "bash-restrictions"
-    )}
-
-    <!-- Sandbox Configuration -->
-    ${generateSection(
-      "SANDBOX CONFIGURATION",
-      sandboxContent,
-      undefined,
-      "sandbox-config"
-    )}
-
-    <!-- Directory Access Controls -->
-    ${generateSection(
-      "DIRECTORY ACCESS CONTROLS",
-      generateDirectoryAccessContent(currentConfig),
-      undefined,
-      "directory-access"
-    )}
-
-    <!-- Security Profiles -->
-    ${generateSection(
-      "SECURITY PROFILES",
-      generateSecurityProfilesContent(),
-      undefined,
-      "security-profiles"
-    )}
-
-    <!-- MCP Integrity -->
-    ${generateSection(
-      "MCP SERVER INTEGRITY",
-      integrityContent,
-      hasIntegrityIssues ? "text-[#f85149]" : "text-[#8b949e]",
-      "mcp-integrity"
-    )}
-
-    <!-- Enterprise -->
-    ${generateSection("ENTERPRISE", enterpriseContent, undefined, "enterprise")}
-  </div>
+    
+    <!-- STEP 2: Select Scope (was Step 4) -->
+    <div class="wizard-step hidden" data-step="2">
+      <div class="text-center mb-8">
+        <h2 class="text-2xl font-bold text-white mb-2">Select Scope to Remediate</h2>
+        <p class="text-[rgba(255,255,255,0.6)]">Choose which configuration you want to modify</p>
+      </div>
+      
+      <div class="space-y-4 mb-6">
+        <!-- Global Option -->
+        <label class="glass-card rounded-xl p-5 block cursor-pointer hover:border-[var(--primary)] transition">
+          <div class="flex items-start gap-4">
+            <input type="radio" name="scope" value="global" class="mt-1" checked onchange="selectScope('global')">
+            <div class="flex-1">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="px-2 py-0.5 bg-[#58a6ff] text-white text-xs font-semibold rounded">GLOBAL</span>
+                <span class="font-semibold text-white">User Settings</span>
+              </div>
+              <code class="text-xs text-[#8b949e] block mb-2">~/.claude/settings.json</code>
+              <p class="text-sm text-[#8b949e]">Applies to <strong>all projects</strong>. Good for protecting SSH keys, AWS credentials, and personal secrets.</p>
+              <div class="mt-2 text-xs text-[#d29922]">${
+                highIssues.length
+              } high, ${mediumIssues.length} medium, ${
+    lowIssues.length
+  } low risk issues</div>
+            </div>
+          </div>
+        </label>
+        
+        <!-- Project Options -->
+        ${
+          results.configInventory?.projects
+            .slice(0, 5)
+            .map((p, i) => {
+              const hasShared = p.settings.shared;
+              const hasLocal = p.settings.local;
+              const settingsFile = hasLocal
+                ? "settings.local.json"
+                : "settings.json";
+              const badges = [];
+              if (hasShared)
+                badges.push(
+                  '<span class="px-1 py-0.5 bg-[#238636] text-white text-[10px] rounded ml-2">shared</span>'
+                );
+              if (hasLocal)
+                badges.push(
+                  '<span class="px-1 py-0.5 bg-[#a371f7] text-white text-[10px] rounded ml-2">local</span>'
+                );
+              return `
+        <label class="glass-card rounded-xl p-5 block cursor-pointer hover:border-[var(--primary)] transition">
+          <div class="flex items-start gap-4">
+            <input type="radio" name="scope" value="${escapeHtml(
+              p.path
+            )}" class="mt-1" onchange="selectScope('project', '${escapeHtml(
+                p.path
+              )}')">
+            <div class="flex-1">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="px-2 py-0.5 bg-[#238636] text-white text-xs font-semibold rounded">PROJECT</span>
+                <span class="font-semibold text-white">${escapeHtml(
+                  p.name
+                )}</span>
+                ${badges.join("")}
+              </div>
+              <code class="text-xs text-[#8b949e] block mb-2">${escapeHtml(
+                p.path.replace(process.env.HOME || "", "~")
+              )}/.claude/${settingsFile}</code>
+              <p class="text-sm text-[#8b949e]">Project-specific settings that override global config.</p>
+            </div>
+          </div>
+        </label>
+        `;
+            })
+            .join("") || ""
+        }
+      </div>
+      
+      ${
+        results.configInventory?.isITManaged
+          ? `
+      <div class="bg-[#d29922]/20 border border-[#d29922] rounded-xl p-4 mb-6">
+        <div class="flex items-start gap-3">
+          <span class="text-xl">⚠️</span>
+          <div>
+            <div class="font-semibold text-white mb-1">IT-Managed Settings Active</div>
+            <p class="text-sm text-[#8b949e]">Some settings may be overridden by your organization's managed configuration and cannot be changed.</p>
+          </div>
+        </div>
+      </div>
+      `
+          : ""
+      }
+      
+      <!-- Navigation -->
+      <div class="flex justify-between mt-6">
+        <button onclick="goToStep(1)" class="btn-secondary px-6 py-3 rounded-lg font-semibold">
+          ← Back
+        </button>
+        <button onclick="goToStep(3)" class="btn-gradient px-6 py-3 rounded-lg font-semibold">
+          View Issues →
+        </button>
+      </div>
+    </div>
+    
+    <!-- STEP 3: Remediation (was Step 5) -->
+    <div class="wizard-step hidden" data-step="3">
+      <div class="text-center mb-8">
+        <h2 class="text-2xl font-bold text-white mb-2">Remediation</h2>
+        <div class="flex items-center justify-center gap-2 mb-2">
+          <span id="selected-scope-badge" class="px-2 py-0.5 ${
+            isProjectScope ? "bg-[#238636]" : "bg-[#58a6ff]"
+          } text-white text-xs font-semibold rounded">${scopeLabel}</span>
+          <span id="selected-scope-label" class="text-[var(--primary)] font-medium">${
+            isProjectScope
+              ? escapeHtml(scope.projectPath?.split("/").pop() || "Project")
+              : "Global Settings"
+          }</span>
+        </div>
+        <code id="selected-scope-path" class="text-xs text-[rgba(255,255,255,0.5)]">${escapeHtml(
+          actualConfigPath
+        )}</code>
+      </div>
+      
+      <!-- Merged Permissions for Selected Scope -->
+      ${generateSection(
+        "MERGED PERMISSIONS",
+        generateEffectiveConfigContent(
+          results.effectiveConfig,
+          results.configInventory
+        ),
+        undefined,
+        "effective-config"
+      )}
+      
+      <!-- Progress Bar -->
+      <div class="glass-card rounded-xl p-4 mb-6">
+        <div class="flex items-center gap-4">
+          <span class="text-sm text-[#8b949e]">Progress:</span>
+          <span class="text-sm text-[#c9d1d9]" id="progress-text">0/${totalIssues} fixed</span>
+          <div class="flex-1 h-2 bg-[#21262d] rounded-full overflow-hidden">
+            <div id="progress-bar" class="h-full bg-[var(--primary)] rounded-full transition-all duration-300" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Severity Sections -->
+      ${generateSeveritySection("high", highIssues)}
+      ${generateSeveritySection("medium", mediumIssues)}
+      ${generateSeveritySection("low", lowIssues)}
+      
+      <!-- Tool Restrictions -->
+      ${generateSection(
+        "TOOL RESTRICTIONS",
+        toolRestrictionsContent,
+        undefined,
+        "tool-restrictions"
+      )}
+      
+      <!-- Bash Command Restrictions -->
+      ${generateSection(
+        "BASH COMMAND RESTRICTIONS",
+        bashRestrictionsContent,
+        undefined,
+        "bash-restrictions"
+      )}
+      
+      <!-- Sandbox Configuration -->
+      ${generateSection(
+        "SANDBOX CONFIGURATION",
+        sandboxContent,
+        undefined,
+        "sandbox-config"
+      )}
+      
+      <!-- Directory Access Controls -->
+      ${generateSection(
+        "DIRECTORY ACCESS CONTROLS",
+        generateDirectoryAccessContent(currentConfig),
+        undefined,
+        "directory-access"
+      )}
+      
+      <!-- Security Profiles -->
+      ${generateSection(
+        "SECURITY PROFILES",
+        generateSecurityProfilesContent(),
+        undefined,
+        "security-profiles"
+      )}
+      
+      <!-- MCP Integrity -->
+      ${generateSection(
+        "MCP SERVER INTEGRITY",
+        integrityContent,
+        hasIntegrityIssues ? "text-[#f85149]" : "text-[#8b949e]",
+        "mcp-integrity"
+      )}
+      
+      <!-- Navigation -->
+      <div class="flex justify-between mt-6">
+        <button onclick="goToStep(2)" class="btn-secondary px-6 py-3 rounded-lg font-semibold">
+          ← Change Scope
+        </button>
+      </div>
+      
+      <!-- Enterprise -->
+      <div class="mt-8">
+        ${generateSection(
+          "ENTERPRISE",
+          enterpriseContent,
+          undefined,
+          "enterprise"
+        )}
+      </div>
+    </div>
+    
+  </div><!-- End Wizard Container -->
 
   </div><!-- End Main Content Wrapper -->
 
@@ -1248,6 +2102,97 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
       return div.innerHTML;
     }
 
+    // Refresh merged permissions section dynamically
+    async function refreshMergedPermissions() {
+      console.log('[DEBUG] refreshMergedPermissions called');
+      try {
+        const projectPath = selectedProjectPath || null;
+        const url = projectPath
+          ? '/api/effective-config?project=' + encodeURIComponent(projectPath)
+          : '/api/effective-config';
+        console.log('[DEBUG] Fetching:', url);
+        const res = await fetch(url);
+        const effectiveConfig = await res.json();
+        console.log('[DEBUG] Got effective config:', effectiveConfig);
+
+        // Generate the updated HTML for merged permissions
+        const contentDiv = document.getElementById('effective-config-content');
+        console.log('[DEBUG] Found content div:', contentDiv);
+        if (contentDiv) {
+          const newHtml = generateMergedPermissionsHtml(effectiveConfig);
+          console.log('[DEBUG] Generated HTML length:', newHtml.length);
+          contentDiv.innerHTML = newHtml;
+          console.log('[DEBUG] Updated innerHTML');
+        } else {
+          console.error('[DEBUG] Could not find #effective-config-content');
+        }
+      } catch (err) {
+        console.error('Failed to refresh merged permissions:', err);
+      }
+    }
+    
+    // Generate merged permissions HTML from effective config data
+    function generateMergedPermissionsHtml(config) {
+      if (!config) return '<p class="text-sm text-[#8b949e] italic">Effective configuration not available.</p>';
+      
+      const permissionSources = config.permissions?.sources || [];
+      const denyRules = permissionSources.filter(s => s.type === 'deny');
+      const allowRules = permissionSources.filter(s => s.type === 'allow');
+      const toolSources = config.tools?.sources || [];
+      const disallowedTools = toolSources.filter(s => s.type === 'disallowed');
+      const allowedTools = toolSources.filter(s => s.type === 'allowed');
+      
+      const getScopeBadgeColor = (scope) => {
+        switch (scope) {
+          case 'managed': return 'bg-[#f85149]';
+          case 'local': return 'bg-[#a371f7]';
+          case 'project': return 'bg-[#238636]';
+          case 'user': return 'bg-[#58a6ff]';
+          default: return 'bg-[#30363d]';
+        }
+      };
+      
+      const getScopeLabel = (scope) => {
+        switch (scope) {
+          case 'managed': return 'IT-Managed';
+          case 'local': return 'Local';
+          case 'project': return 'Project';
+          case 'user': return 'User';
+          default: return scope;
+        }
+      };
+      
+      const denyHtml = denyRules.length > 0
+        ? denyRules.map(s => '<div class="flex items-center justify-between py-1.5 border-b border-[#30363d] last:border-0"><code class="text-sm text-[#f85149]">' + escapeHtml(s.rule) + '</code><span class="px-2 py-0.5 ' + getScopeBadgeColor(s.scope) + ' text-white text-xs rounded">' + getScopeLabel(s.scope) + '</span></div>').join('')
+        : '<p class="text-xs text-[#8b949e] italic">No deny rules configured.</p>';
+      
+      const allowHtml = allowRules.length > 0
+        ? allowRules.map(s => '<div class="flex items-center justify-between py-1.5 border-b border-[#30363d] last:border-0"><code class="text-sm text-[#3fb950]">' + escapeHtml(s.rule) + '</code><span class="px-2 py-0.5 ' + getScopeBadgeColor(s.scope) + ' text-white text-xs rounded">' + getScopeLabel(s.scope) + '</span></div>').join('')
+        : '<p class="text-xs text-[#8b949e] italic">No allow rules configured.</p>';
+      
+      // Tool restrictions
+      let toolHtml = '';
+      if (disallowedTools.length > 0 || allowedTools.length > 0) {
+        const disallowedHtml = disallowedTools.length > 0
+          ? disallowedTools.map(s => '<div class="flex items-center justify-between py-1.5 border-b border-[#30363d] last:border-0"><code class="text-sm text-[#f85149]">' + escapeHtml(s.tool) + '</code><span class="px-2 py-0.5 ' + getScopeBadgeColor(s.scope) + ' text-white text-xs rounded">' + getScopeLabel(s.scope) + '</span></div>').join('')
+          : '<p class="text-xs text-[#8b949e] italic">No tools blocked.</p>';
+        
+        const allowedToolsHtml = allowedTools.length > 0
+          ? allowedTools.map(s => '<div class="flex items-center justify-between py-1.5 border-b border-[#30363d] last:border-0"><code class="text-sm text-[#3fb950]">' + escapeHtml(s.tool) + '</code><span class="px-2 py-0.5 ' + getScopeBadgeColor(s.scope) + ' text-white text-xs rounded">' + getScopeLabel(s.scope) + '</span></div>').join('')
+          : '<p class="text-xs text-[#8b949e] italic">No tools explicitly allowed.</p>';
+        
+        toolHtml = '<div class="bg-[#0d1117] border border-[#30363d] rounded-lg p-4 mt-4"><div class="text-xs font-semibold text-[#c9d1d9] uppercase mb-3">Tool Restrictions</div><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div><div class="text-xs font-semibold text-[#f85149] mb-2">Blocked (' + disallowedTools.length + ')</div>' + disallowedHtml + '</div><div><div class="text-xs font-semibold text-[#3fb950] mb-2">Allowed (' + allowedTools.length + ')</div>' + allowedToolsHtml + '</div></div></div>';
+      }
+      
+      // Sandbox
+      let sandboxHtml = '';
+      if (config.sandbox) {
+        sandboxHtml = '<div class="bg-[#0d1117] border border-[#30363d] rounded-lg p-4 mt-4"><div class="flex items-center justify-between mb-2"><span class="text-sm font-semibold text-[#c9d1d9]">Sandbox Configuration</span><span class="px-2 py-0.5 ' + getScopeBadgeColor(config.sandboxSource) + ' text-white text-xs rounded">' + getScopeLabel(config.sandboxSource) + '</span></div><div class="text-xs text-[#8b949e]"><div>Enabled: <span class="' + (config.sandbox.enabled ? 'text-[#3fb950]' : 'text-[#f85149]') + '">' + (config.sandbox.enabled ? 'Yes' : 'No') + '</span></div></div></div>';
+      }
+      
+      return '<p class="text-sm text-[#8b949e] mb-4">The merged configuration that Claude Code actually uses, with source attribution.</p><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div class="bg-[#0d1117] border border-[#30363d] rounded-lg p-4"><div class="text-xs font-semibold text-[#f85149] uppercase mb-2">Deny Rules (' + denyRules.length + ')</div>' + denyHtml + '</div><div class="bg-[#0d1117] border border-[#30363d] rounded-lg p-4"><div class="text-xs font-semibold text-[#3fb950] uppercase mb-2">Allow Rules (' + allowRules.length + ')</div>' + allowHtml + '</div></div>' + sandboxHtml + toolHtml;
+    }
+
     // Generate git-style diff view with line highlighting
     function generateDiffView(before, after) {
       const beforeLines = before.split('\\n');
@@ -1277,6 +2222,11 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
       
       return { beforeHtml, afterHtml };
     }
+
+    // Wizard state variables (must be declared before functions that use them)
+    let currentStep = 1;
+    let selectedScopeType = 'global';
+    let selectedProjectPath = null;
 
     // State
     const state = {
@@ -1408,6 +2358,23 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
           return;
         }
 
+        // Check if fix is already applied
+        if (preview.alreadyApplied) {
+          const bodyHtml =
+            '<div class="text-center py-8">' +
+            '<div class="text-4xl mb-4">✅</div>' +
+            '<p class="text-lg text-[#3fb950] font-semibold mb-2">Already Protected</p>' +
+            '<p class="text-sm text-[#8b949e]">This rule is already in your configuration.</p>' +
+            '<div class="mt-4 bg-[#0d1117] border border-[#30363d] rounded p-3 text-xs font-mono text-left">' +
+            '<code class="text-[#f85149]">' + escapeHtml(target) + '</code>' +
+            '</div>' +
+            '</div>';
+          document.getElementById('modal-body').innerHTML = bodyHtml;
+          document.getElementById('modal-confirm').style.display = 'none';
+          markIssueFixed(id);
+          return;
+        }
+
         const explanation = actionType === 'disable-mcp'
           ? 'This will remove the <strong>' + escapeHtml(target) + '</strong> MCP server from your configuration. Claude Code will no longer have access to this server.'
           : 'This will add a deny rule to prevent Claude Code from reading <strong>' + escapeHtml(target) + '</strong>. The files will still exist, but Claude Code will not be able to access them.';
@@ -1429,6 +2396,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
           '<p class="text-xs text-[#8b949e] mt-4">A backup will be created automatically.</p>';
 
         document.getElementById('modal-body').innerHTML = bodyHtml;
+        document.getElementById('modal-confirm').style.display = 'block';
 
         pendingConfirm = async () => {
           const endpoint = actionType === 'disable-mcp' ? '/api/disable-mcp' : '/api/deny-path';
@@ -1445,6 +2413,8 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
             markIssueFixed(id);
             state.lastAction = { id, actionType, target };
             showToast(data.message);
+            // Refresh merged permissions to show the new rule
+            await refreshMergedPermissions();
           } else {
             showToast(data.error || 'Failed to apply fix', 'error');
           }
@@ -1472,6 +2442,8 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
           markIssueUnfixed(state.lastAction.id);
           state.lastAction = null;
           showToast('Change reverted');
+          // Refresh merged permissions to reflect the reverted change
+          await refreshMergedPermissions();
         } else {
           showToast(data.error || 'Failed to undo', 'error');
         }
@@ -1529,7 +2501,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
           const data = await res.json();
           if (data.success) {
             showToast(data.message);
-            location.reload();
+            await refreshMergedPermissions();
           } else {
             showToast(data.error || 'Failed to disable tool', 'error');
           }
@@ -1589,7 +2561,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
           const data = await res.json();
           if (data.success) {
             showToast(data.message);
-            location.reload();
+            await refreshMergedPermissions();
           } else {
             showToast(data.error || 'Failed to enable tool', 'error');
           }
@@ -1733,7 +2705,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
           if (data.success) {
             showToast(data.message);
             // Reload to show updated state
-            location.reload();
+            await refreshMergedPermissions();
           } else {
             showToast(data.error || 'Failed to update setting', 'error');
           }
@@ -1757,7 +2729,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
         if (data.success) {
           showToast(data.message);
           // Reload to show updated state
-          location.reload();
+          await refreshMergedPermissions();
         } else {
           showToast(data.error || 'Failed to accept hash', 'error');
         }
@@ -1862,7 +2834,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
           const data = await res.json();
           if (data.success) {
             showToast(data.message);
-            location.reload();
+            await refreshMergedPermissions();
           } else {
             showToast(data.error || 'Failed to block directory', 'error');
           }
@@ -1920,7 +2892,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
           const data = await res.json();
           if (data.success) {
             showToast(data.message);
-            location.reload();
+            await refreshMergedPermissions();
           } else {
             showToast(data.error || 'Failed to allow directory', 'error');
           }
@@ -1971,7 +2943,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
           const data = await res.json();
           if (data.success) {
             showToast(data.message);
-            location.reload();
+            await refreshMergedPermissions();
           } else {
             showToast(data.error || 'Failed to remove permission', 'error');
           }
@@ -1990,7 +2962,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
       const bodyHtml = \`
         <div class="space-y-4">
           <p class="text-sm text-[#c9d1d9]">
-            Claude Code uses a <strong>two-tier configuration system</strong>:
+            Claude Code uses a <strong>layered configuration system</strong> with local overrides:
           </p>
           
           <div class="bg-[#0d1117] border border-[#30363d] rounded-lg p-4">
@@ -2016,11 +2988,27 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
               <li>Applies only to that specific project</li>
               <li>Overrides/extends global settings</li>
               <li>Good for: Project-specific MCP servers, team conventions</li>
+              <li>Typically committed to git for team sharing</li>
+            </ul>
+          </div>
+          
+          <div class="bg-[#0d1117] border border-[#a371f7] rounded-lg p-4">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="px-2 py-1 bg-[#a371f7] text-white text-xs font-semibold rounded">LOCAL</span>
+              <span class="font-semibold text-[#c9d1d9]">Local Settings Override</span>
+              <code class="text-xs text-[#a371f7]">settings.local.json</code>
+            </div>
+            <ul class="text-sm text-[#8b949e] ml-8 list-disc space-y-1">
+              <li>Can exist at <strong>both</strong> user and project level</li>
+              <li>User: <code class="text-[#a371f7]">~/.claude/settings.local.json</code></li>
+              <li>Project: <code class="text-[#a371f7]">.claude/settings.local.json</code></li>
+              <li><strong>Not committed to git</strong> (add to .gitignore)</li>
+              <li>Good for: Personal dev overrides, local testing configs</li>
             </ul>
           </div>
           
           <div class="bg-[#0d1117] border border-[#30363d] rounded-lg p-4">
-            <div class="text-sm font-semibold text-[#c9d1d9] mb-2">How They Merge</div>
+            <div class="text-sm font-semibold text-[#c9d1d9] mb-2">How They Merge (Precedence Order)</div>
             <div class="text-center text-sm text-[#8b949e]">
               <div class="inline-block text-left">
                 <div class="flex items-center gap-2 mb-1">
@@ -2029,7 +3017,15 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
                 </div>
                 <div class="flex items-center gap-2 mb-1">
                   <span class="w-4 text-center">↓</span>
-                  <span>Project Settings (override/extend)</span>
+                  <span class="text-[#a371f7]">Global Local Settings (override)</span>
+                </div>
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="w-4 text-center">↓</span>
+                  <span>Project Settings (override)</span>
+                </div>
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="w-4 text-center">↓</span>
+                  <span class="text-[#a371f7]">Project Local Settings (highest)</span>
                 </div>
                 <div class="flex items-center gap-2">
                   <span class="w-4 text-center">↓</span>
@@ -2044,7 +3040,8 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
             <div class="text-xs text-[#8b949e] space-y-1">
               <div>Global denies: <code class="text-[#f85149]">~/.ssh/**</code></div>
               <div>Project denies: <code class="text-[#f85149]">.env</code></div>
-              <div class="text-[#3fb950]">→ Effective: Both <code>~/.ssh/**</code> AND <code>.env</code> are blocked</div>
+              <div>Project local allows: <code class="text-[#a371f7]">.env.example</code> (personal override)</div>
+              <div class="text-[#3fb950]">→ Effective: <code>~/.ssh/**</code> and <code>.env</code> blocked, but <code>.env.example</code> allowed</div>
             </div>
           </div>
         </div>
@@ -2058,6 +3055,190 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
     // ============================================
     // Security Profile Functions
     // ============================================
+
+    // Toggle project list visibility
+    function toggleProjectList() {
+      const list = document.getElementById('project-list');
+      if (list) list.classList.toggle('hidden');
+    }
+
+    // Switch scope
+    async function switchScope(projectPath) {
+      try {
+        const res = await fetch('/api/switch-scope', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectPath: projectPath || null }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Switched scope to ' + (projectPath ? projectPath.split('/').pop() : 'Global'));
+          await refreshMergedPermissions();
+        } else {
+          showToast(data.error || 'Failed to switch scope', 'error');
+        }
+      } catch (err) {
+        showToast('Failed to switch scope', 'error');
+      }
+    }
+
+    // ============================================
+    // Wizard Navigation Functions
+    // ============================================
+    
+    function goToStep(step, updateHash = true) {
+      // Hide all steps
+      document.querySelectorAll('.wizard-step').forEach(el => {
+        el.classList.add('hidden');
+      });
+      
+      // Show target step
+      const targetStep = document.querySelector('.wizard-step[data-step="' + step + '"]');
+      if (targetStep) {
+        targetStep.classList.remove('hidden');
+      }
+      
+      // Update sidebar indicators
+      document.querySelectorAll('.wizard-step-nav').forEach(nav => {
+        const navStep = parseInt(nav.dataset.step);
+        const indicator = nav.querySelector('.step-indicator');
+        const label = nav.querySelector('span:last-child');
+        
+        if (navStep < step) {
+          // Completed step
+          indicator.className = 'step-indicator w-6 h-6 rounded-full bg-[#3fb950] text-white flex items-center justify-center text-xs font-bold';
+          indicator.innerHTML = '✓';
+          label.className = 'text-sm text-white';
+        } else if (navStep === step) {
+          // Current step
+          indicator.className = 'step-indicator w-6 h-6 rounded-full bg-[var(--primary)] text-[#0a2020] flex items-center justify-center text-xs font-bold';
+          indicator.textContent = navStep;
+          label.className = 'text-sm text-white';
+        } else {
+          // Future step
+          indicator.className = 'step-indicator w-6 h-6 rounded-full bg-[rgba(255,255,255,0.2)] text-white flex items-center justify-center text-xs font-bold';
+          indicator.textContent = navStep;
+          label.className = 'text-sm text-[rgba(255,255,255,0.6)]';
+        }
+      });
+      
+      currentStep = step;
+      
+      // Update URL hash to persist step across reloads
+      if (updateHash) {
+        window.location.hash = 'step-' + step;
+      }
+      
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    
+    async function selectScope(type, projectPath) {
+      console.log('[DEBUG] selectScope called:', type, projectPath);
+      selectedScopeType = type;
+      selectedProjectPath = projectPath || null;
+
+      // Call API to switch server-side scope
+      try {
+        const res = await fetch('/api/switch-scope', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectPath: projectPath || null }),
+        });
+        const data = await res.json();
+        console.log('[DEBUG] switch-scope response:', data);
+        if (!data.success) {
+          showToast(data.error || 'Failed to switch scope', 'error');
+        }
+      } catch (err) {
+        console.error('[DEBUG] switch-scope error:', err);
+        showToast('Failed to switch scope', 'error');
+      }
+
+      // Update the Step 3 header elements
+      const badge = document.getElementById('selected-scope-badge');
+      const label = document.getElementById('selected-scope-label');
+      const pathEl = document.getElementById('selected-scope-path');
+      
+      console.log('[DEBUG] Found elements:', { badge: !!badge, label: !!label, pathEl: !!pathEl });
+
+      if (badge) {
+        if (type === 'global') {
+          badge.textContent = 'GLOBAL';
+          badge.className = 'px-2 py-0.5 bg-[#58a6ff] text-white text-xs font-semibold rounded';
+        } else {
+          badge.textContent = 'PROJECT';
+          badge.className = 'px-2 py-0.5 bg-[#238636] text-white text-xs font-semibold rounded';
+        }
+        console.log('[DEBUG] Updated badge to:', badge.textContent);
+      }
+
+      if (label) {
+        if (type === 'global') {
+          label.textContent = 'Global Settings';
+        } else {
+          label.textContent = projectPath ? projectPath.split('/').pop() : 'Project';
+        }
+        console.log('[DEBUG] Updated label to:', label.textContent);
+      }
+
+      if (pathEl) {
+        if (type === 'global') {
+          pathEl.textContent = '~/.claude/settings.json';
+        } else {
+          const shortPath = projectPath ? projectPath.replace(/^\\/Users\\/[^\\/]+/, '~') : '';
+          pathEl.textContent = shortPath + '/.claude/settings.json';
+        }
+        console.log('[DEBUG] Updated path to:', pathEl.textContent);
+      }
+
+      // Refresh merged permissions for the new scope
+      await refreshMergedPermissions();
+    }
+    
+    // Initialize wizard on page load - read step from URL hash
+    document.addEventListener('DOMContentLoaded', () => {
+      const hash = window.location.hash;
+      const stepMatch = hash.match(/step-(\d)/);
+      const initialStep = stepMatch ? parseInt(stepMatch[1]) : 1;
+      goToStep(initialStep, false); // Don't update hash on initial load
+    });
+    
+    // Handle browser back/forward buttons
+    window.addEventListener('hashchange', () => {
+      const hash = window.location.hash;
+      const stepMatch = hash.match(/step-(\d)/);
+      if (stepMatch) {
+        const step = parseInt(stepMatch[1]);
+        if (step !== currentStep) {
+          goToStep(step, false);
+        }
+      }
+    });
+
+    // ============================================
+    // Welcome Card Dismissal
+    // ============================================
+    
+    function dismissWelcome() {
+      const card = document.getElementById('welcome-card');
+      if (card) {
+        card.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(-10px)';
+        setTimeout(() => {
+          card.remove();
+          localStorage.setItem('cdk-welcome-dismissed', 'true');
+        }, 300);
+      }
+    }
+    
+    // Check if welcome was previously dismissed
+    document.addEventListener('DOMContentLoaded', () => {
+      if (localStorage.getItem('cdk-welcome-dismissed') === 'true') {
+        const card = document.getElementById('welcome-card');
+        if (card) card.remove();
+      }
+    });
 
     // Apply security profile
     async function applyProfile(profileId) {
@@ -2100,7 +3281,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
           const data = await res.json();
           if (data.success) {
             showToast(data.message);
-            location.reload();
+            await refreshMergedPermissions();
           } else {
             showToast(data.error || 'Failed to apply profile', 'error');
           }

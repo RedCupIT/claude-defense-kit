@@ -14,6 +14,11 @@ import {
   scanClaudeInstallation,
 } from "./scanners/integrity.js";
 import { scanIdentityExposure } from "./scanners/identity.js";
+import {
+  scanConfigInventory,
+  getInventorySummary,
+} from "./scanners/config-inventory.js";
+import { computeEffectiveConfig } from "./analyzers/effective-config.js";
 import { calculateRiskScore } from "./analyzers/risk-score.js";
 import {
   analyzeBlastRadius,
@@ -118,6 +123,22 @@ async function main(): Promise<void> {
 async function runScan(options: CliOptions): Promise<ScanResultsWithIssues> {
   const log = options.verbose ? (msg: string) => console.error(msg) : () => {};
 
+  // Scan configuration inventory (managed, user, projects)
+  log("Scanning configuration inventory...");
+  const configInventory = await scanConfigInventory({
+    scanProjects: true,
+    projectScanDepth: 4,
+  });
+
+  // Log inventory summary in verbose mode
+  if (options.verbose) {
+    const summary = getInventorySummary(configInventory);
+    for (const line of summary) {
+      console.error(line);
+    }
+    console.error("");
+  }
+
   // Detect AI agents
   log("Detecting AI agents...");
   const agent = await detectClaudeCode();
@@ -190,6 +211,12 @@ async function runScan(options: CliOptions): Promise<ScanResultsWithIssues> {
     riskScore,
   });
 
+  // Compute effective configuration
+  log("Computing effective configuration...");
+  const projectPath =
+    options.scope.type === "project" ? options.scope.projectPath : null;
+  const effectiveConfig = computeEffectiveConfig(configInventory, projectPath);
+
   const baseResults: ScanResults = {
     timestamp: new Date().toISOString(),
     agent,
@@ -203,6 +230,8 @@ async function runScan(options: CliOptions): Promise<ScanResultsWithIssues> {
     integrity,
     identityExposure,
     claudeInstallation,
+    configInventory,
+    effectiveConfig,
   };
 
   // Generate security issues for the interactive UX

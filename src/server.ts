@@ -1,5 +1,6 @@
 import express from "express";
 import { exec } from "child_process";
+import * as fs from "fs";
 import { detectClaudeCode } from "./detectors/claude-code.js";
 import { scanMcpServers } from "./scanners/mcp.js";
 import { scanFilesystem } from "./scanners/filesystem.js";
@@ -13,6 +14,8 @@ import {
   acceptClaudeInstallationHash,
 } from "./scanners/integrity.js";
 import { scanIdentityExposure } from "./scanners/identity.js";
+import { scanConfigInventory } from "./scanners/config-inventory.js";
+import { computeEffectiveConfig } from "./analyzers/effective-config.js";
 import { calculateRiskScore } from "./analyzers/risk-score.js";
 import {
   analyzeBlastRadius,
@@ -21,7 +24,11 @@ import {
 import { generateRecommendations } from "./analyzers/recommendations.js";
 import { generateSecurityIssues } from "./analyzers/issues.js";
 import { generateHtmlReport } from "./reporters/html.js";
-import { generateLandingPage } from "./reporters/landing.js";
+import {
+  generateLandingPage,
+  generateScanningPage,
+  generateReportShell,
+} from "./reporters/landing.js";
 import {
   denyPath,
   disableMcpServer,
@@ -90,6 +97,17 @@ async function runScan(): Promise<ScanResultsWithIssues> {
     riskScore,
   });
 
+  // Scan configuration inventory
+  const configInventory = await scanConfigInventory({
+    scanProjects: true,
+    projectScanDepth: 4,
+  });
+
+  // Compute effective configuration
+  const scope = getConfigScope();
+  const projectPath = scope.type === "project" ? scope.projectPath : null;
+  const effectiveConfig = computeEffectiveConfig(configInventory, projectPath);
+
   const baseResults: ScanResults = {
     timestamp: new Date().toISOString(),
     agent,
@@ -103,6 +121,8 @@ async function runScan(): Promise<ScanResultsWithIssues> {
     integrity,
     identityExposure,
     claudeInstallation,
+    configInventory,
+    effectiveConfig,
   };
 
   // Generate security issues for the new UX
@@ -159,15 +179,47 @@ export async function startServer(scope?: ConfigScope): Promise<void> {
   const app = express();
   app.use(express.json());
 
-  // Serve the interactive HTML report
-  app.get("/", async (_req, res) => {
+  // Serve the scanning interstitial page (instant load)
+  app.get("/", (_req, res) => {
+    const html = generateScanningPage();
+    res.type("html").send(html);
+  });
+
+  // Serve the full report (uses cached scan if available via query param)
+  app.get("/report", async (req, res) => {
     try {
-      const results = await runScan();
-      const html = generateHtmlReport(results);
-      res.type("html").send(html);
+      // Check if client has cached results (passed via query param)
+      const useCached = req.query.cached === "true";
+
+      if (useCached) {
+        // Client will inject cached data via JavaScript
+        // Send a shell page that reads from sessionStorage
+        const shellHtml = generateReportShell();
+        res.type("html").send(shellHtml);
+      } else {
+        // No cache, run fresh scan
+        const results = await runScan();
+        const html = generateHtmlReport(results);
+        res.type("html").send(html);
+      }
     } catch (err) {
       console.error("Scan error:", err);
       res.status(500).send("Error running scan");
+    }
+  });
+
+  // API endpoint to get pre-rendered report HTML from scan data
+  app.post("/api/render-report", async (req, res) => {
+    try {
+      const scanData = req.body;
+      if (!scanData || !scanData.agent) {
+        return res.status(400).json({ error: "Invalid scan data" });
+      }
+      const html = generateHtmlReport(scanData);
+      res.type("html").send(html);
+    } catch (err) {
+      console.error("Render report error:", err);
+      res.status(500).send("Error rendering report");
     }
   });
 
@@ -204,11 +256,35 @@ export async function startServer(scope?: ConfigScope): Promise<void> {
   });
 
   // API: View config file in browser
-  app.get("/api/config/view", (_req, res) => {
+  app.get("/api/config/view", (req, res) => {
     try {
-      const config = readClaudeConfig();
-      const configPath = getConfigPath().replace(process.env.HOME || "", "~");
-      const json = JSON.stringify(config, null, 2);
+      // Check if a specific path was requested
+      const requestedPath = req.query.path as string | undefined;
+
+      let configPath: string;
+      let json: string;
+
+      if (requestedPath) {
+        // Read the specific file requested
+        if (!fs.existsSync(requestedPath)) {
+          return res.status(404).send(`File not found: ${requestedPath}`);
+        }
+        const content = fs.readFileSync(requestedPath, "utf-8");
+        try {
+          const parsed = JSON.parse(content);
+          json = JSON.stringify(parsed, null, 2);
+        } catch {
+          // If not valid JSON, show raw content
+          json = content;
+        }
+        configPath = requestedPath.replace(process.env.HOME || "", "~");
+      } else {
+        // Fall back to current scope's config
+        const config = readClaudeConfig();
+        configPath = getConfigPath().replace(process.env.HOME || "", "~");
+        json = JSON.stringify(config, null, 2);
+      }
+
       const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -252,10 +328,12 @@ export async function startServer(scope?: ConfigScope): Promise<void> {
         return res.status(400).json({ error: "path is required" });
       }
       const diff = getDenyPathDiff(path);
+      const alreadyApplied = diff.before === diff.after;
       res.json({
         configPath: getConfigPath().replace(process.env.HOME || "", "~"),
         before: diff.before,
         after: diff.after,
+        alreadyApplied,
       });
     } catch (err) {
       console.error("Preview deny path error:", err);
@@ -709,6 +787,60 @@ export async function startServer(scope?: ConfigScope): Promise<void> {
     } catch (err) {
       console.error("Apply profile error:", err);
       res.status(500).json({ error: "Error applying profile" });
+    }
+  });
+
+  // ============================================
+  // Configuration Inventory Endpoints
+  // ============================================
+
+  // API: Get configuration inventory
+  app.get("/api/inventory", async (_req, res) => {
+    try {
+      const inventory = await scanConfigInventory({
+        scanProjects: true,
+        projectScanDepth: 4,
+      });
+      res.json(inventory);
+    } catch (err) {
+      console.error("Inventory error:", err);
+      res.status(500).json({ error: "Error scanning configuration inventory" });
+    }
+  });
+
+  // API: Get effective config for a project
+  app.get("/api/effective-config", async (req, res) => {
+    try {
+      const projectPath = (req.query.project as string) || null;
+      const inventory = await scanConfigInventory({
+        scanProjects: true,
+        projectScanDepth: 4,
+      });
+      const effectiveConfig = computeEffectiveConfig(inventory, projectPath);
+      res.json(effectiveConfig);
+    } catch (err) {
+      console.error("Effective config error:", err);
+      res.status(500).json({ error: "Error computing effective config" });
+    }
+  });
+
+  // API: Switch scope and rescan
+  app.post("/api/switch-scope", async (req, res) => {
+    try {
+      const { projectPath } = req.body;
+      if (projectPath) {
+        setConfigScope({ type: "project", projectPath });
+      } else {
+        setConfigScope({ type: "global" });
+      }
+      res.json({
+        success: true,
+        scope: getConfigScope(),
+        configPath: getConfigPath().replace(process.env.HOME || "", "~"),
+      });
+    } catch (err) {
+      console.error("Switch scope error:", err);
+      res.status(500).json({ error: "Error switching scope" });
     }
   });
 
