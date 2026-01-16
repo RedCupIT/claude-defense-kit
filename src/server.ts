@@ -24,7 +24,11 @@ import {
 import { generateRecommendations } from "./analyzers/recommendations.js";
 import { generateSecurityIssues } from "./analyzers/issues.js";
 import { generateHtmlReport } from "./reporters/html.js";
-import { generateLandingPage } from "./reporters/landing.js";
+import {
+  generateLandingPage,
+  generateScanningPage,
+  generateReportShell,
+} from "./reporters/landing.js";
 import {
   denyPath,
   disableMcpServer,
@@ -175,15 +179,47 @@ export async function startServer(scope?: ConfigScope): Promise<void> {
   const app = express();
   app.use(express.json());
 
-  // Serve the interactive HTML report
-  app.get("/", async (_req, res) => {
+  // Serve the scanning interstitial page (instant load)
+  app.get("/", (_req, res) => {
+    const html = generateScanningPage();
+    res.type("html").send(html);
+  });
+
+  // Serve the full report (uses cached scan if available via query param)
+  app.get("/report", async (req, res) => {
     try {
-      const results = await runScan();
-      const html = generateHtmlReport(results);
-      res.type("html").send(html);
+      // Check if client has cached results (passed via query param)
+      const useCached = req.query.cached === "true";
+
+      if (useCached) {
+        // Client will inject cached data via JavaScript
+        // Send a shell page that reads from sessionStorage
+        const shellHtml = generateReportShell();
+        res.type("html").send(shellHtml);
+      } else {
+        // No cache, run fresh scan
+        const results = await runScan();
+        const html = generateHtmlReport(results);
+        res.type("html").send(html);
+      }
     } catch (err) {
       console.error("Scan error:", err);
       res.status(500).send("Error running scan");
+    }
+  });
+
+  // API endpoint to get pre-rendered report HTML from scan data
+  app.post("/api/render-report", async (req, res) => {
+    try {
+      const scanData = req.body;
+      if (!scanData || !scanData.agent) {
+        return res.status(400).json({ error: "Invalid scan data" });
+      }
+      const html = generateHtmlReport(scanData);
+      res.type("html").send(html);
+    } catch (err) {
+      console.error("Render report error:", err);
+      res.status(500).send("Error rendering report");
     }
   });
 

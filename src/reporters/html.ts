@@ -1605,58 +1605,6 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
     <!-- STEP 1: Environment Overview -->
     <div class="wizard-step" data-step="1">
       
-      <!-- Welcome Card (dismissable) -->
-      <div id="welcome-card" class="glass-card rounded-xl p-6 mb-6 border-l-4 border-[var(--primary)]">
-        <div class="flex items-start justify-between gap-4">
-          <div class="flex-1">
-            <div class="flex items-center gap-2 mb-3">
-              <span class="text-2xl">👋</span>
-              <h2 class="text-xl font-bold text-white">Welcome to Claude Defense Kit</h2>
-            </div>
-            <p class="text-sm text-[rgba(255,255,255,0.7)] mb-4">
-              This tool scans your Claude Code installation to identify security risks. Here's what we'll do:
-            </p>
-            <div class="grid grid-cols-3 gap-4 mb-4">
-              <div class="text-center">
-                <div class="w-10 h-10 rounded-full bg-[var(--primary)]/20 border border-[var(--primary)] flex items-center justify-center mx-auto mb-2">
-                  <span class="text-[var(--primary)] font-bold">1</span>
-                </div>
-                <div class="text-sm font-medium text-white">Discover</div>
-                <div class="text-xs text-[rgba(255,255,255,0.5)]">Find all configs</div>
-              </div>
-              <div class="text-center">
-                <div class="w-10 h-10 rounded-full bg-[var(--primary)]/20 border border-[var(--primary)] flex items-center justify-center mx-auto mb-2">
-                  <span class="text-[var(--primary)] font-bold">2</span>
-                </div>
-                <div class="text-sm font-medium text-white">Analyze</div>
-                <div class="text-xs text-[rgba(255,255,255,0.5)]">Identify risks</div>
-              </div>
-              <div class="text-center">
-                <div class="w-10 h-10 rounded-full bg-[var(--primary)]/20 border border-[var(--primary)] flex items-center justify-center mx-auto mb-2">
-                  <span class="text-[var(--primary)] font-bold">3</span>
-                </div>
-                <div class="text-sm font-medium text-white">Remediate</div>
-                <div class="text-xs text-[rgba(255,255,255,0.5)]">One-click fixes</div>
-              </div>
-            </div>
-            <div class="flex items-center gap-4">
-              <p class="text-xs text-[rgba(255,255,255,0.4)]">
-                🔒 All analysis happens locally. No data leaves your machine.
-              </p>
-              <span class="text-xs text-[rgba(255,255,255,0.4)]">•</span>
-              <p class="text-xs text-[rgba(255,255,255,0.4)]">
-                Scanned at ${new Date().toLocaleString()}
-              </p>
-            </div>
-          </div>
-          <button onclick="dismissWelcome()" class="text-[rgba(255,255,255,0.4)] hover:text-white transition p-1" title="Dismiss">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-      
       <div class="text-center mb-8">
         <h2 class="text-2xl font-bold text-white mb-2">Environment Overview</h2>
         <p class="text-[rgba(255,255,255,0.6)]">Here's what we found on your system</p>
