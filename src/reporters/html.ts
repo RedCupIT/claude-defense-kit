@@ -1593,8 +1593,6 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
       </div>
     </div>
     
-    <div class="border-t border-[rgba(255,255,255,0.1)] my-4 mx-2"></div>
-    <a href="#enterprise" class="nav-link text-xs">Enterprise Solutions</a>
   </nav>
 
   <!-- Main Content Wrapper (offset from sidebar) -->
@@ -1782,7 +1780,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
                   : ""
               }
             </div>
-            <code class="text-xs text-[#8b949e]">.claude/settings.json</code>
+            <code class="text-xs text-[#8b949e]">.claude/settings.json</code> or <code class="text-xs text-[#a371f7]">.claude/settings.local.json</code>
             ${
               (results.configInventory?.projects.length || 0) > 0
                 ? `
@@ -1790,18 +1788,32 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
               ${results.configInventory?.projects
                 .slice(0, 10)
                 .map((p) => {
-                  // Determine which settings file exists: shared or local
-                  const settingsFile = p.settings.local
+                  // Show both shared and local if they exist
+                  const hasShared = p.settings.shared;
+                  const hasLocal = p.settings.local;
+                  const badges = [];
+                  if (hasShared)
+                    badges.push(
+                      '<span class="px-1 py-0.5 bg-[#238636] text-white text-[10px] rounded">shared</span>'
+                    );
+                  if (hasLocal)
+                    badges.push(
+                      '<span class="px-1 py-0.5 bg-[#a371f7] text-white text-[10px] rounded">local</span>'
+                    );
+                  const settingsFile = hasLocal
                     ? "/.claude/settings.local.json"
-                    : p.settings.shared
+                    : hasShared
                     ? "/.claude/settings.json"
                     : "/.claude/settings.json";
                   return `
-                <div class="text-xs py-0.5"><a href="/api/config/view?path=${encodeURIComponent(
-                  p.path + settingsFile
-                )}" target="_blank" class="text-[#58a6ff] hover:underline">${escapeHtml(
+                <div class="text-xs py-0.5 flex items-center gap-2">
+                  <a href="/api/config/view?path=${encodeURIComponent(
+                    p.path + settingsFile
+                  )}" target="_blank" class="text-[#58a6ff] hover:underline">${escapeHtml(
                     p.path.replace(process.env.HOME || "", "~")
-                  )}</a></div>
+                  )}</a>
+                  ${badges.join(" ")}
+                </div>
               `;
                 })
                 .join("")}
@@ -1921,8 +1933,22 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
         ${
           results.configInventory?.projects
             .slice(0, 5)
-            .map(
-              (p, i) => `
+            .map((p, i) => {
+              const hasShared = p.settings.shared;
+              const hasLocal = p.settings.local;
+              const settingsFile = hasLocal
+                ? "settings.local.json"
+                : "settings.json";
+              const badges = [];
+              if (hasShared)
+                badges.push(
+                  '<span class="px-1 py-0.5 bg-[#238636] text-white text-[10px] rounded ml-2">shared</span>'
+                );
+              if (hasLocal)
+                badges.push(
+                  '<span class="px-1 py-0.5 bg-[#a371f7] text-white text-[10px] rounded ml-2">local</span>'
+                );
+              return `
         <label class="glass-card rounded-xl p-5 block cursor-pointer hover:border-[var(--primary)] transition">
           <div class="flex items-start gap-4">
             <input type="radio" name="scope" value="${escapeHtml(
@@ -1936,16 +1962,17 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
                 <span class="font-semibold text-white">${escapeHtml(
                   p.name
                 )}</span>
+                ${badges.join("")}
               </div>
               <code class="text-xs text-[#8b949e] block mb-2">${escapeHtml(
                 p.path.replace(process.env.HOME || "", "~")
-              )}/.claude/settings.json</code>
+              )}/.claude/${settingsFile}</code>
               <p class="text-sm text-[#8b949e]">Project-specific settings that override global config.</p>
             </div>
           </div>
         </label>
-        `
-            )
+        `;
+            })
             .join("") || ""
         }
       </div>
@@ -2247,6 +2274,11 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
       
       return { beforeHtml, afterHtml };
     }
+
+    // Wizard state variables (must be declared before functions that use them)
+    let currentStep = 1;
+    let selectedScopeType = 'global';
+    let selectedProjectPath = null;
 
     // State
     const state = {
@@ -2982,7 +3014,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
       const bodyHtml = \`
         <div class="space-y-4">
           <p class="text-sm text-[#c9d1d9]">
-            Claude Code uses a <strong>two-tier configuration system</strong>:
+            Claude Code uses a <strong>layered configuration system</strong> with local overrides:
           </p>
           
           <div class="bg-[#0d1117] border border-[#30363d] rounded-lg p-4">
@@ -3008,11 +3040,27 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
               <li>Applies only to that specific project</li>
               <li>Overrides/extends global settings</li>
               <li>Good for: Project-specific MCP servers, team conventions</li>
+              <li>Typically committed to git for team sharing</li>
+            </ul>
+          </div>
+          
+          <div class="bg-[#0d1117] border border-[#a371f7] rounded-lg p-4">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="px-2 py-1 bg-[#a371f7] text-white text-xs font-semibold rounded">LOCAL</span>
+              <span class="font-semibold text-[#c9d1d9]">Local Settings Override</span>
+              <code class="text-xs text-[#a371f7]">settings.local.json</code>
+            </div>
+            <ul class="text-sm text-[#8b949e] ml-8 list-disc space-y-1">
+              <li>Can exist at <strong>both</strong> user and project level</li>
+              <li>User: <code class="text-[#a371f7]">~/.claude/settings.local.json</code></li>
+              <li>Project: <code class="text-[#a371f7]">.claude/settings.local.json</code></li>
+              <li><strong>Not committed to git</strong> (add to .gitignore)</li>
+              <li>Good for: Personal dev overrides, local testing configs</li>
             </ul>
           </div>
           
           <div class="bg-[#0d1117] border border-[#30363d] rounded-lg p-4">
-            <div class="text-sm font-semibold text-[#c9d1d9] mb-2">How They Merge</div>
+            <div class="text-sm font-semibold text-[#c9d1d9] mb-2">How They Merge (Precedence Order)</div>
             <div class="text-center text-sm text-[#8b949e]">
               <div class="inline-block text-left">
                 <div class="flex items-center gap-2 mb-1">
@@ -3021,7 +3069,15 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
                 </div>
                 <div class="flex items-center gap-2 mb-1">
                   <span class="w-4 text-center">↓</span>
-                  <span>Project Settings (override/extend)</span>
+                  <span class="text-[#a371f7]">Global Local Settings (override)</span>
+                </div>
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="w-4 text-center">↓</span>
+                  <span>Project Settings (override)</span>
+                </div>
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="w-4 text-center">↓</span>
+                  <span class="text-[#a371f7]">Project Local Settings (highest)</span>
                 </div>
                 <div class="flex items-center gap-2">
                   <span class="w-4 text-center">↓</span>
@@ -3036,7 +3092,8 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
             <div class="text-xs text-[#8b949e] space-y-1">
               <div>Global denies: <code class="text-[#f85149]">~/.ssh/**</code></div>
               <div>Project denies: <code class="text-[#f85149]">.env</code></div>
-              <div class="text-[#3fb950]">→ Effective: Both <code>~/.ssh/**</code> AND <code>.env</code> are blocked</div>
+              <div>Project local allows: <code class="text-[#a371f7]">.env.example</code> (personal override)</div>
+              <div class="text-[#3fb950]">→ Effective: <code>~/.ssh/**</code> and <code>.env</code> blocked, but <code>.env.example</code> allowed</div>
             </div>
           </div>
         </div>
@@ -3080,10 +3137,6 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
     // ============================================
     // Wizard Navigation Functions
     // ============================================
-    
-    let currentStep = 1;
-    let selectedScopeType = 'global';
-    let selectedProjectPath = null;
     
     function goToStep(step, updateHash = true) {
       // Hide all steps
@@ -3132,9 +3185,10 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
     }
     
     async function selectScope(type, projectPath) {
+      console.log('[DEBUG] selectScope called:', type, projectPath);
       selectedScopeType = type;
       selectedProjectPath = projectPath || null;
-      
+
       // Call API to switch server-side scope
       try {
         const res = await fetch('/api/switch-scope', {
@@ -3143,18 +3197,22 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
           body: JSON.stringify({ projectPath: projectPath || null }),
         });
         const data = await res.json();
+        console.log('[DEBUG] switch-scope response:', data);
         if (!data.success) {
           showToast(data.error || 'Failed to switch scope', 'error');
         }
       } catch (err) {
+        console.error('[DEBUG] switch-scope error:', err);
         showToast('Failed to switch scope', 'error');
       }
-      
+
       // Update the Step 3 header elements
       const badge = document.getElementById('selected-scope-badge');
       const label = document.getElementById('selected-scope-label');
       const pathEl = document.getElementById('selected-scope-path');
       
+      console.log('[DEBUG] Found elements:', { badge: !!badge, label: !!label, pathEl: !!pathEl });
+
       if (badge) {
         if (type === 'global') {
           badge.textContent = 'GLOBAL';
@@ -3163,16 +3221,18 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
           badge.textContent = 'PROJECT';
           badge.className = 'px-2 py-0.5 bg-[#238636] text-white text-xs font-semibold rounded';
         }
+        console.log('[DEBUG] Updated badge to:', badge.textContent);
       }
-      
+
       if (label) {
         if (type === 'global') {
           label.textContent = 'Global Settings';
         } else {
           label.textContent = projectPath ? projectPath.split('/').pop() : 'Project';
         }
+        console.log('[DEBUG] Updated label to:', label.textContent);
       }
-      
+
       if (pathEl) {
         if (type === 'global') {
           pathEl.textContent = '~/.claude/settings.json';
@@ -3180,8 +3240,9 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
           const shortPath = projectPath ? projectPath.replace(/^\\/Users\\/[^\\/]+/, '~') : '';
           pathEl.textContent = shortPath + '/.claude/settings.json';
         }
+        console.log('[DEBUG] Updated path to:', pathEl.textContent);
       }
-      
+
       // Refresh merged permissions for the new scope
       await refreshMergedPermissions();
     }
