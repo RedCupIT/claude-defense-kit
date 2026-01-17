@@ -809,14 +809,23 @@ export async function startServer(scope?: ConfigScope): Promise<void> {
   });
 
   // API: Get effective config for a project
+  // This endpoint does a FULL inventory scan to properly merge global + project configs
   app.get("/api/effective-config", async (req, res) => {
     try {
       const projectPath = (req.query.project as string) || null;
-      const inventory = await scanConfigInventory({
+
+      // Do a full inventory scan to get ALL configs (global + projects)
+      // This is necessary to properly compute the effective merged config
+      const fullInventory = await scanConfigInventory({
         scanProjects: true,
         projectScanDepth: 4,
       });
-      const effectiveConfig = computeEffectiveConfig(inventory, projectPath);
+
+      // Compute effective config with proper merging of global + project
+      const effectiveConfig = computeEffectiveConfig(
+        fullInventory,
+        projectPath
+      );
       res.json(effectiveConfig);
     } catch (err) {
       console.error("Effective config error:", err);

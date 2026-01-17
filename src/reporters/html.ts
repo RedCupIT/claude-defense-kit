@@ -1856,6 +1856,35 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
         <p class="text-[rgba(255,255,255,0.6)]">Choose which configuration you want to modify</p>
       </div>
       
+      <!-- Best Practices Guidance -->
+      <div class="glass-card rounded-xl p-5 mb-6 border-l-4 border-[var(--primary)]">
+        <div class="flex items-start gap-3">
+          <span class="text-xl">💡</span>
+          <div>
+            <div class="font-semibold text-white mb-2">Recommended Strategy</div>
+            <p class="text-sm text-[rgba(255,255,255,0.7)] mb-3">
+              <strong class="text-[var(--primary)]">Lock down your Global config tightly</strong> — it serves as the secure baseline for ALL projects:
+            </p>
+            <ul class="text-sm text-[rgba(255,255,255,0.6)] space-y-1 mb-3 ml-4">
+              <li>• Block sensitive directories (~/.ssh, ~/.aws, ~/.gnupg)</li>
+              <li>• Restrict dangerous tools and commands</li>
+              <li>• Deny access to personal credentials</li>
+            </ul>
+            <p class="text-sm text-[rgba(255,255,255,0.7)] mb-2">
+              <strong class="text-[#238636]">Project configs can be more permissive</strong> for specific needs:
+            </p>
+            <ul class="text-sm text-[rgba(255,255,255,0.6)] space-y-1 ml-4">
+              <li>• Allow project-specific MCP servers</li>
+              <li>• Enable tools needed for that project</li>
+              <li>• Override global restrictions when necessary</li>
+            </ul>
+            <p class="text-xs text-[rgba(255,255,255,0.4)] mt-3 pt-3 border-t border-[rgba(255,255,255,0.1)]">
+              Think of it as: <strong>Global = secure baseline</strong>, <strong>Project = targeted exceptions</strong>
+            </p>
+          </div>
+        </div>
+      </div>
+      
       <div class="space-y-4 mb-6">
         <!-- Global Option -->
         <label class="glass-card rounded-xl p-5 block cursor-pointer hover:border-[var(--primary)] transition">
@@ -2244,7 +2273,8 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
       // Update sticky progress bar
       document.getElementById('progress-text').textContent = fixed + '/' + state.total + ' fixed';
       document.getElementById('progress-bar').style.width = percent + '%';
-      document.getElementById('undo-btn').disabled = !state.lastAction;
+      const undoBtn = document.getElementById('undo-btn');
+      if (undoBtn) undoBtn.disabled = !state.lastAction;
       
       // Update header progress bar
       const headerProgressText = document.getElementById('header-progress-text');
@@ -2562,6 +2592,8 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
           if (data.success) {
             showToast(data.message);
             await refreshMergedPermissions();
+            // Update the tool card button to reflect the new state
+            updateToolCardState(toolName, false);
           } else {
             showToast(data.error || 'Failed to enable tool', 'error');
           }
@@ -2623,7 +2655,8 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
             const card = document.getElementById('bash-' + command);
             if (card) card.classList.add('fixed');
             state.lastAction = { id: 'bash-' + command, type: 'bash', target: pattern };
-            document.getElementById('undo-btn').disabled = false;
+            const undoBtnBash = document.getElementById('undo-btn');
+            if (undoBtnBash) undoBtnBash.disabled = false;
             showToast(data.message);
           } else {
             showToast(data.error || 'Failed to block command', 'error');
@@ -2645,7 +2678,8 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
           const card = document.getElementById(cardId);
           if (card) card.classList.remove('fixed');
           state.lastAction = null;
-          document.getElementById('undo-btn').disabled = true;
+          const undoBtnRestriction = document.getElementById('undo-btn');
+          if (undoBtnRestriction) undoBtnRestriction.disabled = true;
           showToast('Change reverted');
         } else {
           showToast(data.error || 'Failed to undo', 'error');
@@ -3239,6 +3273,38 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
         if (card) card.remove();
       }
     });
+
+    // Update tool card state after enable/disable
+    function updateToolCardState(toolName, isDisabled) {
+      const card = document.getElementById('tool-' + toolName);
+      if (!card) return;
+      
+      // Find the status badge and button
+      const badge = card.querySelector('.flex.items-center.gap-2 span');
+      const button = card.querySelector('button');
+      
+      if (badge) {
+        if (isDisabled) {
+          badge.className = 'px-2 py-0.5 rounded text-xs font-medium bg-[#f85149] text-white';
+          badge.textContent = 'BLOCKED';
+        } else {
+          badge.className = 'px-2 py-0.5 rounded text-xs font-medium bg-[#238636] text-white';
+          badge.textContent = 'ALLOWED';
+        }
+      }
+      
+      if (button) {
+        if (isDisabled) {
+          button.className = 'shrink-0 px-3 py-1.5 bg-[#238636] text-white rounded text-sm font-medium hover:brightness-110 transition';
+          button.textContent = 'Enable';
+          button.setAttribute('onclick', "enableTool('" + toolName + "')");
+        } else {
+          button.className = 'shrink-0 px-3 py-1.5 bg-[#f85149] text-white rounded text-sm font-medium hover:brightness-110 transition';
+          button.textContent = 'Disable';
+          button.setAttribute('onclick', "disableTool('" + toolName + "')");
+        }
+      }
+    }
 
     // Apply security profile
     async function applyProfile(profileId) {
