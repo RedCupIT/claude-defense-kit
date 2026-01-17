@@ -147,7 +147,7 @@ function generateSection(
   title: string,
   content: string,
   titleColor?: string,
-  id?: string
+  id?: string,
 ): string {
   const colorClass = titleColor || "text-[rgba(255,255,255,0.6)]";
   const idAttr = id ? ` id="${id}"` : "";
@@ -168,7 +168,7 @@ function generateFindingCard(issue: SecurityIssue): string {
   const actionLabel = issue.type === "mcp-server" ? "Disable" : "Fix";
   const commandHtml = issue.command
     ? `<code class="block mt-2 text-xs text-[rgba(255,255,255,0.5)] bg-[rgba(0,0,0,0.3)] px-2 py-1 rounded overflow-x-auto">${escapeHtml(
-        issue.command
+        issue.command,
       )}</code>`
     : "";
 
@@ -179,18 +179,18 @@ function generateFindingCard(issue: SecurityIssue): string {
         <div class="flex-1 min-w-0">
           <h3 class="font-semibold text-white">${escapeHtml(issue.title)}</h3>
           <code class="text-sm text-[rgba(255,255,255,0.6)] break-all">${escapeHtml(
-            issue.target
+            issue.target,
           )}</code>
         </div>
         <button class="btn-fix btn-gradient shrink-0 px-3 py-1.5 rounded text-sm"
           onclick="fixIssue('${escapeHtml(issue.id)}', '${
-    issue.action.type
-  }', '${escapeHtml(issue.action.target)}')">
+            issue.action.type
+          }', '${escapeHtml(issue.action.target)}')">
           ${actionLabel}
         </button>
       </div>
       <p class="text-sm text-[rgba(255,255,255,0.6)] mt-2">${escapeHtml(
-        issue.description
+        issue.description,
       )}</p>
       ${commandHtml}
       <div class="fixed-badge hidden mt-2 text-sm text-[#10b981]">&#10003; Fixed</div>
@@ -200,13 +200,13 @@ function generateFindingCard(issue: SecurityIssue): string {
 // Generate a tool restriction card
 function generateToolRestrictionCard(
   tool: (typeof TOOL_RESTRICTIONS)[0],
-  isDisabled: boolean
+  isDisabled: boolean,
 ): string {
   const statusBadge = isDisabled
     ? '<span class="px-2 py-0.5 rounded text-xs font-medium bg-[#f85149] text-white">BLOCKED</span>'
     : '<span class="px-2 py-0.5 rounded text-xs font-medium bg-[#238636] text-white">ALLOWED</span>';
 
-  const buttonLabel = isDisabled ? "Enable" : "Disable";
+  const buttonLabel = isDisabled ? "Allow" : "Deny";
   const buttonAction = isDisabled
     ? `enableTool('${escapeHtml(tool.name)}')`
     : `disableTool('${escapeHtml(tool.name)}')`;
@@ -224,7 +224,7 @@ function generateToolRestrictionCard(
             ${statusBadge}
           </div>
           <span class="text-sm text-[rgba(255,255,255,0.6)]">${escapeHtml(
-            tool.description
+            tool.description,
           )}</span>
         </div>
         <button class="shrink-0 px-3 py-1.5 ${buttonClass} rounded text-sm font-medium hover:brightness-110 transition"
@@ -233,7 +233,7 @@ function generateToolRestrictionCard(
         </button>
       </div>
       <p class="text-sm text-[rgba(255,255,255,0.6)] mt-2">${escapeHtml(
-        tool.detail
+        tool.detail,
       )}</p>
     </div>`;
 }
@@ -241,7 +241,7 @@ function generateToolRestrictionCard(
 // Generate a bash command restriction card
 function generateBashRestrictionCard(
   cmd: (typeof BASH_COMMAND_RESTRICTIONS)[0],
-  isBlocked: boolean
+  isBlocked: boolean,
 ): string {
   const cardClass = isBlocked ? "finding-card fixed" : "finding-card";
 
@@ -251,16 +251,16 @@ function generateBashRestrictionCard(
       <div class="flex justify-between items-start gap-4">
         <div class="flex-1 min-w-0">
           <h3 class="font-semibold text-[#c9d1d9]">${escapeHtml(
-            cmd.command
+            cmd.command,
           )}</h3>
           <code class="text-sm text-[#8b949e] break-all">${escapeHtml(
-            cmd.pattern
+            cmd.pattern,
           )}</code>
         </div>
         <button class="btn-fix shrink-0 px-3 py-1.5 bg-[#58a6ff] text-white rounded text-sm font-medium hover:brightness-110 transition"
           onclick="blockBashCommand('${escapeHtml(cmd.command)}', '${escapeHtml(
-    cmd.pattern
-  )}')">
+            cmd.pattern,
+          )}')">
           Block
         </button>
         <button class="btn-undo hidden shrink-0 px-3 py-1.5 bg-[#21262d] text-[#c9d1d9] border border-[#30363d] rounded text-sm font-medium hover:bg-[#30363d] transition"
@@ -276,7 +276,7 @@ function generateBashRestrictionCard(
 // Generate a sandbox setting card
 function generateSandboxCard(
   setting: (typeof SANDBOX_SETTINGS)[0],
-  currentValue: boolean | undefined
+  currentValue: boolean | undefined,
 ): string {
   const value = currentValue ?? setting.defaultValue;
   const isEnabled = setting.invertDisplay ? !value : value;
@@ -290,10 +290,10 @@ function generateSandboxCard(
       <div class="flex justify-between items-start gap-4">
         <div class="flex-1 min-w-0">
           <h3 class="font-semibold text-[#c9d1d9]">${escapeHtml(
-            setting.name
+            setting.name,
           )}</h3>
           <code class="text-sm text-[#8b949e]">${escapeHtml(
-            setting.configKey
+            setting.configKey,
           )}</code>
         </div>
         <span class="shrink-0 px-2 py-0.5 rounded text-xs font-medium ${
@@ -303,13 +303,13 @@ function generateSandboxCard(
         </span>
         <button class="shrink-0 px-3 py-1.5 bg-[#58a6ff] text-white rounded text-sm font-medium hover:brightness-110 transition"
           onclick="updateSandbox('${escapeHtml(
-            setting.path
+            setting.path,
           )}', ${JSON.stringify(newValue)}, '${escapeHtml(setting.name)}')">
           ${buttonLabel}
         </button>
       </div>
       <p class="text-sm text-[#8b949e] mt-2">${escapeHtml(
-        setting.description
+        setting.description,
       )}</p>
     </div>`;
 }
@@ -363,16 +363,16 @@ function generateIntegrityCard(item: McpIntegrityResult): string {
       <div class="text-xs text-[#8b949e] mt-1">
         <div>Was: <code class="text-[#f0883e]">${item.baselineHash?.slice(
           0,
-          24
+          24,
         )}...</code></div>
         <div>Now: <code class="text-[#f0883e]">${item.currentHash?.slice(
           0,
-          24
+          24,
         )}...</code></div>
       </div>`;
   } else if (item.status === "missing") {
     details = `<span class="text-[#f85149] text-xs">File not found: ${escapeHtml(
-      item.targetPath || "unknown"
+      item.targetPath || "unknown",
     )}</span>`;
   } else if (item.status === "unhashable") {
     details =
@@ -383,8 +383,8 @@ function generateIntegrityCard(item: McpIntegrityResult): string {
     item.status === "changed" && item.currentHash && item.targetPath
       ? `<button class="shrink-0 px-3 py-1.5 bg-[#58a6ff] text-white rounded text-sm font-medium hover:brightness-110 transition"
          onclick="acceptHash('${escapeHtml(item.serverName)}', '${escapeHtml(
-          item.targetPath
-        )}', '${escapeHtml(item.currentHash)}')">
+           item.targetPath,
+         )}', '${escapeHtml(item.currentHash)}')">
          Accept
        </button>`
       : "";
@@ -392,20 +392,20 @@ function generateIntegrityCard(item: McpIntegrityResult): string {
   return `
     <div class="bg-[#21262d] border border-[#30363d] rounded-lg p-4 mb-3 last:mb-0"
          id="integrity-${escapeHtml(
-           item.serverName.replace(/[^a-zA-Z0-9]/g, "-")
+           item.serverName.replace(/[^a-zA-Z0-9]/g, "-"),
          )}">
       <div class="flex justify-between items-start gap-4">
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2 mb-1">
             <span class="px-2 py-0.5 rounded text-xs font-medium ${bgClass} ${textClass}">${label}</span>
             <h3 class="font-semibold text-[#c9d1d9]">${escapeHtml(
-              item.serverName
+              item.serverName,
             )}</h3>
           </div>
           ${
             item.targetPath
               ? `<code class="text-xs text-[#8b949e] break-all">${escapeHtml(
-                  item.targetPath
+                  item.targetPath,
                 )}</code>`
               : ""
           }
@@ -423,7 +423,7 @@ function generateDirectoryAccessContent(config: ClaudeCodeConfig): string {
 
   // Filter to just directory rules (contain ** or end with /)
   const allowDirs = allowRules.filter(
-    (r) => r.includes("**") || r.endsWith("/")
+    (r) => r.includes("**") || r.endsWith("/"),
   );
   const denyDirs = denyRules.filter((r) => r.includes("**") || r.endsWith("/"));
 
@@ -439,7 +439,7 @@ function generateDirectoryAccessContent(config: ClaudeCodeConfig): string {
             Remove
           </button>
         </div>
-      `
+      `,
           )
           .join("")
       : '<p class="text-sm text-[#8b949e] italic">No directory allow rules configured.</p>';
@@ -456,7 +456,7 @@ function generateDirectoryAccessContent(config: ClaudeCodeConfig): string {
             Remove
           </button>
         </div>
-      `
+      `,
           )
           .join("")
       : '<p class="text-sm text-[#8b949e] italic">No directory deny rules configured.</p>';
@@ -509,10 +509,10 @@ function generateSecurityProfilesContent(): string {
         <div class="flex justify-between items-start gap-4">
           <div class="flex-1">
             <h4 class="font-semibold text-[#c9d1d9] mb-1">${escapeHtml(
-              profile.name
+              profile.name,
             )}</h4>
             <p class="text-sm text-[#8b949e] mb-2">${escapeHtml(
-              profile.description
+              profile.description,
             )}</p>
             <div class="text-xs text-[#8b949e]">
               ${
@@ -576,7 +576,7 @@ function getScopeLabel(scope: ConfigScopeType): string {
 
 // Generate IT-Managed banner
 function generateITManagedBanner(
-  inventory: ConfigInventory | undefined
+  inventory: ConfigInventory | undefined,
 ): string {
   if (!inventory?.isITManaged) return "";
 
@@ -604,7 +604,7 @@ function generateITManagedBanner(
             ${enforcementList
               .map(
                 (e) =>
-                  `<span class="px-2 py-0.5 bg-[#f85149]/30 text-[#f85149] text-xs rounded">${e}</span>`
+                  `<span class="px-2 py-0.5 bg-[#f85149]/30 text-[#f85149] text-xs rounded">${e}</span>`,
               )
               .join("")}
           </div>
@@ -621,7 +621,7 @@ function generateITManagedBanner(
 
 // Generate Configuration Inventory section
 function generateConfigInventoryContent(
-  inventory: ConfigInventory | undefined
+  inventory: ConfigInventory | undefined,
 ): string {
   if (!inventory)
     return '<p class="text-sm text-[#8b949e] italic">Configuration inventory not available.</p>';
@@ -634,9 +634,9 @@ function generateConfigInventoryContent(
         <span class="text-sm text-[#c9d1d9] font-medium">IT-Deployed Configuration</span>
       </div>
       <a href="/api/config/view?path=${encodeURIComponent(
-        inventory.managed.path
+        inventory.managed.path,
       )}" target="_blank" class="text-xs text-[#58a6ff] hover:underline block mb-2">${escapeHtml(
-        inventory.managed.path
+        inventory.managed.path,
       )}</a>
       <div class="text-xs text-[#8b949e]">
         ${
@@ -668,20 +668,20 @@ function generateConfigInventoryContent(
         <div>${
           inventory.user.settings ? "✓" : "✗"
         } <a href="/api/config/view?path=${encodeURIComponent(
-    inventory.user.settingsPath
-  )}" target="_blank" class="text-[#58a6ff] hover:underline">${escapeHtml(
-    inventory.user.settingsPath.replace(process.env.HOME || "", "~")
-  )}</a></div>
+          inventory.user.settingsPath,
+        )}" target="_blank" class="text-[#58a6ff] hover:underline">${escapeHtml(
+          inventory.user.settingsPath.replace(process.env.HOME || "", "~"),
+        )}</a></div>
         <div>${
           inventory.user.mcpConfig ? "✓" : "✗"
         } <a href="/api/config/view?path=${encodeURIComponent(
-    inventory.user.mcpPath
-  )}" target="_blank" class="text-[#58a6ff] hover:underline">${escapeHtml(
-    inventory.user.mcpPath.replace(process.env.HOME || "", "~")
-  )}</a></div>
+          inventory.user.mcpPath,
+        )}" target="_blank" class="text-[#58a6ff] hover:underline">${escapeHtml(
+          inventory.user.mcpPath.replace(process.env.HOME || "", "~"),
+        )}</a></div>
         <div>${inventory.user.agentCount} agents · ${
-    inventory.user.hasClaudeMd ? "✓" : "✗"
-  } CLAUDE.md</div>
+          inventory.user.hasClaudeMd ? "✓" : "✗"
+        } CLAUDE.md</div>
       </div>
     </div>
   `;
@@ -708,7 +708,7 @@ function generateConfigInventoryContent(
             (p) => `
           <div class="flex items-center justify-between text-xs py-1 border-b border-[#30363d] last:border-0">
             <code class="text-[#8b949e]">${escapeHtml(
-              p.path.replace(process.env.HOME || "", "~")
+              p.path.replace(process.env.HOME || "", "~"),
             )}</code>
             <div class="flex gap-1">
               ${
@@ -719,7 +719,7 @@ function generateConfigInventoryContent(
               ${p.hasClaudeMd ? '<span class="text-[#58a6ff]">📄</span>' : ""}
             </div>
           </div>
-        `
+        `,
           )
           .join("")}
         ${
@@ -754,7 +754,7 @@ function generateConfigInventoryContent(
 // Generate Effective Config section
 function generateEffectiveConfigContent(
   effectiveConfig: EffectiveConfig | undefined,
-  inventory: ConfigInventory | undefined
+  inventory: ConfigInventory | undefined,
 ): string {
   if (!effectiveConfig)
     return '<p class="text-sm text-[#8b949e] italic">Effective configuration not available.</p>';
@@ -772,10 +772,10 @@ function generateEffectiveConfigContent(
     <div class="flex items-center justify-between py-1.5 border-b border-[#30363d] last:border-0">
       <code class="text-sm text-[#f85149]">${escapeHtml(s.rule)}</code>
       <span class="px-2 py-0.5 ${getScopeBadgeColor(
-        s.scope
+        s.scope,
       )} text-white text-xs rounded">${getScopeLabel(s.scope)}</span>
     </div>
-  `
+  `,
           )
           .join("")
       : '<p class="text-xs text-[#8b949e] italic">No deny rules configured.</p>';
@@ -788,10 +788,10 @@ function generateEffectiveConfigContent(
     <div class="flex items-center justify-between py-1.5 border-b border-[#30363d] last:border-0">
       <code class="text-sm text-[#3fb950]">${escapeHtml(s.rule)}</code>
       <span class="px-2 py-0.5 ${getScopeBadgeColor(
-        s.scope
+        s.scope,
       )} text-white text-xs rounded">${getScopeLabel(s.scope)}</span>
     </div>
-  `
+  `,
           )
           .join("")
       : '<p class="text-xs text-[#8b949e] italic">No allow rules configured.</p>';
@@ -808,10 +808,10 @@ function generateEffectiveConfigContent(
         <div class="flex items-center gap-2 py-1 text-xs">
           <code class="text-[#8b949e] line-through">${escapeHtml(s.rule)}</code>
           <span class="text-[#8b949e]">set at ${getScopeLabel(
-            s.setAt
+            s.setAt,
           )}, overridden by ${getScopeLabel(s.overriddenBy)}</span>
         </div>
-      `
+      `,
         )
         .join("")}
     </div>
@@ -824,10 +824,10 @@ function generateEffectiveConfigContent(
       <div class="flex items-center justify-between mb-2">
         <span class="text-sm font-semibold text-[#c9d1d9]">Sandbox Configuration</span>
         <span class="px-2 py-0.5 ${getScopeBadgeColor(
-          effectiveConfig.sandboxSource!
+          effectiveConfig.sandboxSource!,
         )} text-white text-xs rounded">${getScopeLabel(
-        effectiveConfig.sandboxSource!
-      )}</span>
+          effectiveConfig.sandboxSource!,
+        )}</span>
       </div>
       <div class="text-xs text-[#8b949e]">
         <div>Enabled: <span class="${
@@ -866,7 +866,7 @@ function generateEffectiveConfigContent(
 
 // Generate tool restrictions HTML for effective config
 function generateToolRestrictionsHtml(
-  effectiveConfig: EffectiveConfig
+  effectiveConfig: EffectiveConfig,
 ): string {
   const toolSources = effectiveConfig.tools?.sources || [];
   const disallowed = toolSources.filter((s) => s.type === "disallowed");
@@ -882,10 +882,10 @@ function generateToolRestrictionsHtml(
       <div class="flex items-center justify-between py-1.5 border-b border-[#30363d] last:border-0">
         <code class="text-sm text-[#f85149]">${escapeHtml(s.tool)}</code>
         <span class="px-2 py-0.5 ${getScopeBadgeColor(
-          s.scope
+          s.scope,
         )} text-white text-xs rounded">${getScopeLabel(s.scope)}</span>
       </div>
-    `
+    `,
           )
           .join("")
       : '<p class="text-xs text-[#8b949e] italic">No tools blocked.</p>';
@@ -898,10 +898,10 @@ function generateToolRestrictionsHtml(
       <div class="flex items-center justify-between py-1.5 border-b border-[#30363d] last:border-0">
         <code class="text-sm text-[#3fb950]">${escapeHtml(s.tool)}</code>
         <span class="px-2 py-0.5 ${getScopeBadgeColor(
-          s.scope
+          s.scope,
         )} text-white text-xs rounded">${getScopeLabel(s.scope)}</span>
       </div>
-    `
+    `,
           )
           .join("")
       : '<p class="text-xs text-[#8b949e] italic">No tools explicitly allowed.</p>';
@@ -939,10 +939,10 @@ function generateMcpRestrictionsHtml(effectiveConfig: EffectiveConfig): string {
       <div class="flex items-center justify-between py-1.5 border-b border-[#30363d] last:border-0">
         <code class="text-sm text-[#f85149]">${escapeHtml(s.server)}</code>
         <span class="px-2 py-0.5 ${getScopeBadgeColor(
-          s.scope
+          s.scope,
         )} text-white text-xs rounded">${getScopeLabel(s.scope)}</span>
       </div>
-    `
+    `,
           )
           .join("")
       : '<p class="text-xs text-[#8b949e] italic">No servers blocked.</p>';
@@ -955,10 +955,10 @@ function generateMcpRestrictionsHtml(effectiveConfig: EffectiveConfig): string {
       <div class="flex items-center justify-between py-1.5 border-b border-[#30363d] last:border-0">
         <code class="text-sm text-[#3fb950]">${escapeHtml(s.server)}</code>
         <span class="px-2 py-0.5 ${getScopeBadgeColor(
-          s.scope
+          s.scope,
         )} text-white text-xs rounded">${getScopeLabel(s.scope)}</span>
       </div>
-    `
+    `,
           )
           .join("")
       : '<p class="text-xs text-[#8b949e] italic">No allowlist configured.</p>';
@@ -982,7 +982,7 @@ function generateMcpRestrictionsHtml(effectiveConfig: EffectiveConfig): string {
 
 // Generate security settings HTML (hooks, bypass mode)
 function generateSecuritySettingsHtml(
-  effectiveConfig: EffectiveConfig
+  effectiveConfig: EffectiveConfig,
 ): string {
   const hooks = effectiveConfig.hooks;
   const bypassMode = effectiveConfig.bypassMode;
@@ -1000,7 +1000,7 @@ function generateSecuritySettingsHtml(
       <div class="flex items-center justify-between py-1.5 border-b border-[#30363d] last:border-0">
         <span class="text-sm text-[#c9d1d9]">All Hooks Disabled</span>
         <span class="px-2 py-0.5 ${getScopeBadgeColor(
-          hooks.source!
+          hooks.source!,
         )} text-white text-xs rounded">${getScopeLabel(hooks.source!)}</span>
       </div>
     `);
@@ -1009,7 +1009,7 @@ function generateSecuritySettingsHtml(
       <div class="flex items-center justify-between py-1.5 border-b border-[#30363d] last:border-0">
         <span class="text-sm text-[#c9d1d9]">Managed Hooks Only</span>
         <span class="px-2 py-0.5 ${getScopeBadgeColor(
-          hooks.source!
+          hooks.source!,
         )} text-white text-xs rounded">${getScopeLabel(hooks.source!)}</span>
       </div>
     `);
@@ -1020,10 +1020,10 @@ function generateSecuritySettingsHtml(
       <div class="flex items-center justify-between py-1.5 border-b border-[#30363d] last:border-0">
         <span class="text-sm text-[#c9d1d9]">Bypass Mode Disabled</span>
         <span class="px-2 py-0.5 ${getScopeBadgeColor(
-          bypassMode.source!
+          bypassMode.source!,
         )} text-white text-xs rounded">${getScopeLabel(
-      bypassMode.source!
-    )}</span>
+          bypassMode.source!,
+        )}</span>
       </div>
     `);
   }
@@ -1039,7 +1039,7 @@ function generateSecuritySettingsHtml(
 // Generate scope selector dropdown
 function generateScopeSelector(
   inventory: ConfigInventory | undefined,
-  currentScope: { type: string; projectPath?: string }
+  currentScope: { type: string; projectPath?: string },
 ): string {
   if (!inventory || inventory.projects.length === 0) return "";
 
@@ -1056,7 +1056,7 @@ function generateScopeSelector(
             currentScope.projectPath === p.path
               ? "selected"
               : ""
-          }>${escapeHtml(p.name)}</option>`
+          }>${escapeHtml(p.name)}</option>`,
       ),
   ].join("");
 
@@ -1074,7 +1074,7 @@ function generateScopeSelector(
 // Generate a severity section (always shown, even if empty)
 function generateSeveritySection(
   risk: "high" | "medium" | "low",
-  issues: SecurityIssue[]
+  issues: SecurityIssue[],
 ): string {
   const colors = {
     high: "text-[#f85149]",
@@ -1129,7 +1129,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
   const scopeDescription = isProjectScope
     ? `Project-level settings for <strong>${scope.projectPath?.replace(
         process.env.HOME || "",
-        "~"
+        "~",
       )}</strong>`
     : "Global settings that apply to <strong>all projects</strong>";
 
@@ -1139,8 +1139,8 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
     .map(
       (item) =>
         `<li class="text-sm text-[#c9d1d9] py-1">${escapeHtml(
-          item.description
-        )}</li>`
+          item.description,
+        )}</li>`,
     )
     .join("");
 
@@ -1153,16 +1153,16 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
             (chain) => `
         <div class="bg-[#0d1117] border border-[#30363d] rounded-lg p-4 mb-3 last:mb-0">
           <div class="font-semibold text-[#c9d1d9] mb-1">${escapeHtml(
-            chain.name
+            chain.name,
           )}</div>
           <div class="text-sm text-[#8b949e] mb-2">${escapeHtml(
-            chain.scenario
+            chain.scenario,
           )}</div>
           <div class="text-sm text-[#f85149]"><span class="font-semibold">Impact:</span> ${escapeHtml(
-            chain.impact
+            chain.impact,
           )}</div>
         </div>
-      `
+      `,
           )
           .join("")
       : "";
@@ -1192,10 +1192,10 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
     ? instStatus === "unchanged"
       ? '<span class="px-2 py-0.5 rounded text-xs font-medium bg-[#238636] text-white ml-2">OK</span>'
       : instStatus === "new"
-      ? '<span class="px-2 py-0.5 rounded text-xs font-medium bg-[#d29922] text-white ml-2">NEW</span>'
-      : instStatus === "changed"
-      ? '<span class="px-2 py-0.5 rounded text-xs font-medium bg-[#f85149] text-white ml-2">CHANGED</span>'
-      : ""
+        ? '<span class="px-2 py-0.5 rounded text-xs font-medium bg-[#d29922] text-white ml-2">NEW</span>'
+        : instStatus === "changed"
+          ? '<span class="px-2 py-0.5 rounded text-xs font-medium bg-[#f85149] text-white ml-2">CHANGED</span>'
+          : ""
     : "";
 
   // Build issue breakdown by severity
@@ -1220,8 +1220,8 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
     instStatus === "changed"
       ? '<span class="text-xs text-[#f85149] ml-2">Installation modified since last scan</span>'
       : instStatus === "new"
-      ? '<span class="text-xs text-[#d29922] ml-2">First scan - baseline recorded</span>'
-      : "";
+        ? '<span class="text-xs text-[#d29922] ml-2">First scan - baseline recorded</span>'
+        : "";
 
   // Build sections
   const whatWeScannedContent = `
@@ -1255,8 +1255,8 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
       <div class="text-xs uppercase tracking-wide text-[#8b949e] mb-2">Scan Results</div>
       <p class="text-sm text-[#c9d1d9] mb-3">
         Found <strong>${totalIssues}</strong> security ${
-    totalIssues === 1 ? "issue" : "issues"
-  }:
+          totalIssues === 1 ? "issue" : "issues"
+        }:
       </p>
       ${issueBreakdown}
     </div>
@@ -1303,7 +1303,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
     </p>
     <p class="text-sm text-[#8b949e]">
       Each fix modifies <code class="text-[#58a6ff]">${escapeHtml(
-        actualConfigPath
+        actualConfigPath,
       )}</code> to deny access.
     </p>`;
 
@@ -1330,7 +1330,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
 
   // Generate tool restrictions section
   const toolRestrictionsCards = TOOL_RESTRICTIONS.map((tool) =>
-    generateToolRestrictionCard(tool, disabledTools.has(tool.name))
+    generateToolRestrictionCard(tool, disabledTools.has(tool.name)),
   ).join("");
 
   const toolRestrictionsContent = `
@@ -1339,7 +1339,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
 
   // Generate bash command restrictions section
   const bashRestrictionsCards = BASH_COMMAND_RESTRICTIONS.map((cmd) =>
-    generateBashRestrictionCard(cmd, denyPatterns.has(cmd.pattern))
+    generateBashRestrictionCard(cmd, denyPatterns.has(cmd.pattern)),
   ).join("");
 
   const bashRestrictionsContent = `
@@ -1363,7 +1363,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
   };
 
   const sandboxCards = SANDBOX_SETTINGS.map((setting) =>
-    generateSandboxCard(setting, getSandboxValue(setting.path))
+    generateSandboxCard(setting, getSandboxValue(setting.path)),
   ).join("");
 
   const sandboxContent = `
@@ -1675,9 +1675,9 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
             ${
               results.configInventory?.isITManaged
                 ? `<a href="/api/config/view?path=${encodeURIComponent(
-                    results.configInventory.managed.path
+                    results.configInventory.managed.path,
                   )}" target="_blank" class="text-xs text-[#58a6ff] hover:underline">${escapeHtml(
-                    results.configInventory.managed.path
+                    results.configInventory.managed.path,
                   )}</a>`
                 : '<p class="text-xs text-[#8b949e]">Not detected</p>'
             }
@@ -1693,23 +1693,23 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
               <div>${
                 results.configInventory?.user.settings ? "✓" : "✗"
               } <a href="/api/config/view?path=${encodeURIComponent(
-    results.configInventory?.user.settingsPath || ""
-  )}" target="_blank" class="text-[#58a6ff] hover:underline">${escapeHtml(
-    (results.configInventory?.user.settingsPath || "").replace(
-      process.env.HOME || "",
-      "~"
-    )
-  )}</a></div>
+                results.configInventory?.user.settingsPath || "",
+              )}" target="_blank" class="text-[#58a6ff] hover:underline">${escapeHtml(
+                (results.configInventory?.user.settingsPath || "").replace(
+                  process.env.HOME || "",
+                  "~",
+                ),
+              )}</a></div>
               <div>${
                 results.configInventory?.user.mcpConfig ? "✓" : "✗"
               } <a href="/api/config/view?path=${encodeURIComponent(
-    results.configInventory?.user.mcpPath || ""
-  )}" target="_blank" class="text-[#58a6ff] hover:underline">${escapeHtml(
-    (results.configInventory?.user.mcpPath || "").replace(
-      process.env.HOME || "",
-      "~"
-    )
-  )}</a></div>
+                results.configInventory?.user.mcpPath || "",
+              )}" target="_blank" class="text-[#58a6ff] hover:underline">${escapeHtml(
+                (results.configInventory?.user.mcpPath || "").replace(
+                  process.env.HOME || "",
+                  "~",
+                ),
+              )}</a></div>
             </div>
           </div>
           
@@ -1742,23 +1742,23 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
                   const badges = [];
                   if (hasShared)
                     badges.push(
-                      '<span class="px-1 py-0.5 bg-[#238636] text-white text-[10px] rounded">shared</span>'
+                      '<span class="px-1 py-0.5 bg-[#238636] text-white text-[10px] rounded">shared</span>',
                     );
                   if (hasLocal)
                     badges.push(
-                      '<span class="px-1 py-0.5 bg-[#a371f7] text-white text-[10px] rounded">local</span>'
+                      '<span class="px-1 py-0.5 bg-[#a371f7] text-white text-[10px] rounded">local</span>',
                     );
                   const settingsFile = hasLocal
                     ? "/.claude/settings.local.json"
                     : hasShared
-                    ? "/.claude/settings.json"
-                    : "/.claude/settings.json";
+                      ? "/.claude/settings.json"
+                      : "/.claude/settings.json";
                   return `
                 <div class="text-xs py-0.5 flex items-center gap-2">
                   <a href="/api/config/view?path=${encodeURIComponent(
-                    p.path + settingsFile
+                    p.path + settingsFile,
                   )}" target="_blank" class="text-[#58a6ff] hover:underline">${escapeHtml(
-                    p.path.replace(process.env.HOME || "", "~")
+                    p.path.replace(process.env.HOME || "", "~"),
                   )}</a>
                   ${badges.join(" ")}
                 </div>
@@ -1812,8 +1812,8 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
           <div class="text-sm font-semibold text-[rgba(255,255,255,0.5)] uppercase tracking-wider mb-3">Issue Breakdown</div>
           <p class="text-sm text-[#c9d1d9] mb-3">
             Found <strong>${totalIssues}</strong> security ${
-    totalIssues === 1 ? "issue" : "issues"
-  }:
+              totalIssues === 1 ? "issue" : "issues"
+            }:
           </p>
           ${issueBreakdown}
         </div>
@@ -1837,7 +1837,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
           "WHAT'S AT RISK",
           whatsAtRiskContent,
           undefined,
-          "whats-at-risk"
+          "whats-at-risk",
         )}
       </div>
       
@@ -1900,8 +1900,8 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
               <div class="mt-2 text-xs text-[#d29922]">${
                 highIssues.length
               } high, ${mediumIssues.length} medium, ${
-    lowIssues.length
-  } low risk issues</div>
+                lowIssues.length
+              } low risk issues</div>
             </div>
           </div>
         </label>
@@ -1919,30 +1919,30 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
               const badges = [];
               if (hasShared)
                 badges.push(
-                  '<span class="px-1 py-0.5 bg-[#238636] text-white text-[10px] rounded ml-2">shared</span>'
+                  '<span class="px-1 py-0.5 bg-[#238636] text-white text-[10px] rounded ml-2">shared</span>',
                 );
               if (hasLocal)
                 badges.push(
-                  '<span class="px-1 py-0.5 bg-[#a371f7] text-white text-[10px] rounded ml-2">local</span>'
+                  '<span class="px-1 py-0.5 bg-[#a371f7] text-white text-[10px] rounded ml-2">local</span>',
                 );
               return `
         <label class="glass-card rounded-xl p-5 block cursor-pointer hover:border-[var(--primary)] transition">
           <div class="flex items-start gap-4">
             <input type="radio" name="scope" value="${escapeHtml(
-              p.path
+              p.path,
             )}" class="mt-1" onchange="selectScope('project', '${escapeHtml(
-                p.path
-              )}')">
+              p.path,
+            )}')">
             <div class="flex-1">
               <div class="flex items-center gap-2 mb-1">
                 <span class="px-2 py-0.5 bg-[#238636] text-white text-xs font-semibold rounded">PROJECT</span>
                 <span class="font-semibold text-white">${escapeHtml(
-                  p.name
+                  p.name,
                 )}</span>
                 ${badges.join("")}
               </div>
               <code class="text-xs text-[#8b949e] block mb-2">${escapeHtml(
-                p.path.replace(process.env.HOME || "", "~")
+                p.path.replace(process.env.HOME || "", "~"),
               )}/.claude/${settingsFile}</code>
               <p class="text-sm text-[#8b949e]">Project-specific settings that override global config.</p>
             </div>
@@ -1996,8 +1996,13 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
           }</span>
         </div>
         <code id="selected-scope-path" class="text-xs text-[rgba(255,255,255,0.5)]">${escapeHtml(
-          actualConfigPath
+          actualConfigPath,
         )}</code>
+        <div class="mt-3">
+          <button onclick="goToStep(2)" class="btn-secondary px-4 py-2 rounded-lg text-sm font-medium">
+            ← Change Scope
+          </button>
+        </div>
       </div>
       
       <!-- Merged Permissions for Selected Scope -->
@@ -2005,10 +2010,10 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
         "MERGED PERMISSIONS",
         generateEffectiveConfigContent(
           results.effectiveConfig,
-          results.configInventory
+          results.configInventory,
         ),
         undefined,
-        "effective-config"
+        "effective-config",
       )}
       
       <!-- Progress Bar -->
@@ -2032,7 +2037,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
         "TOOL RESTRICTIONS",
         toolRestrictionsContent,
         undefined,
-        "tool-restrictions"
+        "tool-restrictions",
       )}
       
       <!-- Bash Command Restrictions -->
@@ -2040,7 +2045,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
         "BASH COMMAND RESTRICTIONS",
         bashRestrictionsContent,
         undefined,
-        "bash-restrictions"
+        "bash-restrictions",
       )}
       
       <!-- Sandbox Configuration -->
@@ -2048,7 +2053,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
         "SANDBOX CONFIGURATION",
         sandboxContent,
         undefined,
-        "sandbox-config"
+        "sandbox-config",
       )}
       
       <!-- Directory Access Controls -->
@@ -2056,7 +2061,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
         "DIRECTORY ACCESS CONTROLS",
         generateDirectoryAccessContent(currentConfig),
         undefined,
-        "directory-access"
+        "directory-access",
       )}
       
       <!-- Security Profiles -->
@@ -2064,7 +2069,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
         "SECURITY PROFILES",
         generateSecurityProfilesContent(),
         undefined,
-        "security-profiles"
+        "security-profiles",
       )}
       
       <!-- MCP Integrity -->
@@ -2072,7 +2077,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
         "MCP SERVER INTEGRITY",
         integrityContent,
         hasIntegrityIssues ? "text-[#f85149]" : "text-[#8b949e]",
-        "mcp-integrity"
+        "mcp-integrity",
       )}
       
       <!-- Navigation -->
@@ -2088,7 +2093,7 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
           "ENTERPRISE",
           enterpriseContent,
           undefined,
-          "enterprise"
+          "enterprise",
         )}
       </div>
     </div>
@@ -2532,6 +2537,8 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
           if (data.success) {
             showToast(data.message);
             await refreshMergedPermissions();
+            // Update the tool card button to reflect the new state
+            updateToolCardState(toolName, true);
           } else {
             showToast(data.error || 'Failed to disable tool', 'error');
           }
@@ -3296,11 +3303,11 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
       if (button) {
         if (isDisabled) {
           button.className = 'shrink-0 px-3 py-1.5 bg-[#238636] text-white rounded text-sm font-medium hover:brightness-110 transition';
-          button.textContent = 'Enable';
+          button.textContent = 'Allow';
           button.setAttribute('onclick', "enableTool('" + toolName + "')");
         } else {
           button.className = 'shrink-0 px-3 py-1.5 bg-[#f85149] text-white rounded text-sm font-medium hover:brightness-110 transition';
-          button.textContent = 'Disable';
+          button.textContent = 'Deny';
           button.setAttribute('onclick', "disableTool('" + toolName + "')");
         }
       }
