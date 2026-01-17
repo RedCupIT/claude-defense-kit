@@ -1,9 +1,6 @@
 // Risk levels for categorizing threats
 export type RiskLevel = "low" | "medium" | "high" | "critical";
 
-// Output format options
-export type OutputFormat = "terminal" | "json" | "html";
-
 // Config scope - global or project-specific
 export type ConfigScope =
   | { type: "global" }
@@ -11,12 +8,9 @@ export type ConfigScope =
 
 // CLI options parsed from command line
 export interface CliOptions {
-  format: OutputFormat;
-  output?: string;
-  color: boolean;
-  verbose: boolean;
   openBrowser: boolean;
-  scope: ConfigScope;
+  port: number;
+  verbose: boolean;
 }
 
 // Detected AI agent information

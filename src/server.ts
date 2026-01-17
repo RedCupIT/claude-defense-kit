@@ -64,9 +64,10 @@ import type {
   ScanResults,
   ScanResultsWithIssues,
   ConfigScope,
+  CliOptions,
 } from "./types/index.js";
 
-const PORT = 3847;
+const DEFAULT_PORT = 3847;
 
 // Run the full scan
 async function runScan(): Promise<ScanResultsWithIssues> {
@@ -157,7 +158,13 @@ function openBrowser(url: string): void {
   });
 }
 
-export async function startServer(scope?: ConfigScope): Promise<void> {
+export async function startServer(
+  scope?: ConfigScope,
+  options?: CliOptions,
+): Promise<void> {
+  const port = options?.port || DEFAULT_PORT;
+  const shouldOpenBrowser = options?.openBrowser !== false;
+
   // Set the config scope if provided
   if (scope) {
     setConfigScope(scope);
@@ -168,10 +175,10 @@ export async function startServer(scope?: ConfigScope): Promise<void> {
     // Check if project config exists
     if (scope.type === "project" && !configExists()) {
       console.log(
-        `Note: No config file exists at ${scope.projectPath}/.claude/settings.json`
+        `Note: No config file exists at ${scope.projectPath}/.claude/settings.json`,
       );
       console.log(
-        "A new config file will be created when you apply your first fix.\n"
+        "A new config file will be created when you apply your first fix.\n",
       );
     }
   }
@@ -733,7 +740,7 @@ export async function startServer(scope?: ConfigScope): Promise<void> {
           id: key,
           name: profile.name,
           description: profile.description,
-        })
+        }),
       );
       res.json(profiles);
     } catch (err) {
@@ -750,7 +757,7 @@ export async function startServer(scope?: ConfigScope): Promise<void> {
         return res.status(400).json({ error: "Valid profileId is required" });
       }
       const diff = getApplyProfileDiff(
-        profileId as keyof typeof SECURITY_PROFILES
+        profileId as keyof typeof SECURITY_PROFILES,
       );
       const profile =
         SECURITY_PROFILES[profileId as keyof typeof SECURITY_PROFILES];
@@ -824,7 +831,7 @@ export async function startServer(scope?: ConfigScope): Promise<void> {
       // Compute effective config with proper merging of global + project
       const effectiveConfig = computeEffectiveConfig(
         fullInventory,
-        projectPath
+        projectPath,
       );
       res.json(effectiveConfig);
     } catch (err) {
@@ -854,10 +861,12 @@ export async function startServer(scope?: ConfigScope): Promise<void> {
   });
 
   // Start server
-  app.listen(PORT, () => {
-    const url = `http://localhost:${PORT}`;
-    console.log(`AI Agent Security Audit running at ${url}`);
+  app.listen(port, () => {
+    const url = `http://localhost:${port}`;
+    console.log(`Claude Defense Kit running at ${url}`);
     console.log("Press Ctrl+C to stop the server\n");
-    openBrowser(url);
+    if (shouldOpenBrowser) {
+      openBrowser(url);
+    }
   });
 }
