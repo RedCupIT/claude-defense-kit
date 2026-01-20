@@ -35,51 +35,19 @@ npm install -g claude-defense-kit
 ## Usage
 
 ```bash
-# Interactive mode (default) - starts web server with live remediation
+# Start the interactive web dashboard
 claude-defense-kit
-
-# Scan a specific project's configuration
-claude-defense-kit -p /path/to/project
-
 ```
 
 ### Options
 
 ```
--p, --project <path>  Target a specific project directory (edits project-level config)
---help                Display help
---version             Display version
+--no-open     Don't open browser automatically (start server only)
+--port <n>    Port to run the server on (default: 3847)
+--verbose     Show detailed scan progress
+--help        Display help
+--version     Display version
 ```
-
-## Configuration Scopes
-
-Claude Code supports two configuration levels, and Claude Defense Kit can scan and remediate both:
-
-### Global Configuration (Default)
-
-By default, Claude Defense Kit scans and modifies your global configuration at:
-
-```
-~/.claude/settings.json
-```
-
-This affects Claude Code's behavior across all projects.
-
-### Project Configuration
-
-To scan and harden a specific project's configuration, use the `-p` flag:
-
-```bash
-claude-defense-kit -p /path/to/your/project
-```
-
-This targets the project-level configuration at:
-
-```
-<project>/.claude/settings.json
-```
-
-Project-level settings override global settings, allowing you to have stricter security for sensitive projects while keeping a more permissive global config for general use.
 
 ## What It Scans
 
