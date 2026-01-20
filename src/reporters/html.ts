@@ -2056,14 +2056,6 @@ export function generateHtmlReport(results: ScanResultsWithIssues): string {
         "sandbox-config",
       )}
       
-      <!-- Directory Access Controls -->
-      ${generateSection(
-        "DIRECTORY ACCESS CONTROLS",
-        generateDirectoryAccessContent(currentConfig),
-        undefined,
-        "directory-access",
-      )}
-      
       <!-- Security Profiles -->
       ${generateSection(
         "SECURITY PROFILES",
