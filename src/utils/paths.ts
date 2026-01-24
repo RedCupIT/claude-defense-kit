@@ -1,10 +1,42 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
+import { fileURLToPath } from 'url';
 
 // Get user's home directory cross-platform
 export function getHomeDir(): string {
   return os.homedir();
+}
+
+// Get the data directory for JSON pattern files
+// Supports both development (project relative) and Tauri bundled modes
+export function getDataDir(): string {
+  // Check for Tauri bundled resources via environment variable
+  const bundledDataDir = process.env.CDK_DATA_DIR;
+  if (bundledDataDir && fs.existsSync(bundledDataDir)) {
+    return bundledDataDir;
+  }
+
+  // Development mode: resolve relative to this file's location
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+
+  // Navigate from src/utils or dist/utils to project root
+  const projectRoot = path.resolve(__dirname, '..', '..');
+  const devDataDir = path.join(projectRoot, 'data');
+
+  if (fs.existsSync(devDataDir)) {
+    return devDataDir;
+  }
+
+  // Fallback: check relative to cwd
+  const cwdDataDir = path.join(process.cwd(), 'data');
+  if (fs.existsSync(cwdDataDir)) {
+    return cwdDataDir;
+  }
+
+  // Return project data path even if it doesn't exist (for error handling upstream)
+  return devDataDir;
 }
 
 // Expand ~ to home directory

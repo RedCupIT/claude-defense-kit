@@ -2,6 +2,7 @@
   "name": "claude-defense-kit",
   "version": "0.1.0",
   "description": "Secure your Claude Code installation against prompt injection attacks",
+  "type": "module",
   "main": "dist/index.js",
   "bin": {
     "claude-defense-kit": "dist/index.js"
@@ -11,7 +12,11 @@
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
     "clean": "rm -rf dist",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "bundle-server": "npm run build && ncc build dist/index.js -o src-tauri/binaries --source-map && mv src-tauri/binaries/index.js src-tauri/binaries/cdk-server-$(uname -m | sed 's/arm64/aarch64-apple-darwin/' | sed 's/x86_64/x86_64-apple-darwin/') && chmod +x src-tauri/binaries/cdk-server-*",
+    "tauri": "tauri",
+    "tauri:dev": "npm run build && tauri dev",
+    "tauri:build": "tauri build"
   },
   "keywords": [
     "claude",
@@ -39,8 +44,10 @@
     "express": "^4.18.2"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2",
     "@types/express": "^4.17.21",
     "@types/node": "^20.11.0",
+    "@vercel/ncc": "^0.38.3",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   }
