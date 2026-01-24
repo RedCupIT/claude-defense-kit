@@ -1,6 +1,8 @@
 import express from "express";
-import { exec } from "child_process";
+import { spawn } from "child_process";
 import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
 import { detectClaudeCode } from "./detectors/claude-code.js";
 import { scanMcpServers } from "./scanners/mcp.js";
 import { scanFilesystem } from "./scanners/filesystem.js";
@@ -136,26 +138,43 @@ async function runScan(): Promise<ScanResultsWithIssues> {
 }
 
 // Open URL in default browser (cross-platform)
+// Uses spawn with array arguments to prevent command injection
 function openBrowser(url: string): void {
+  // Validate URL format to prevent command injection
+  try {
+    const parsedUrl = new URL(url);
+    if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+      console.error("Invalid URL protocol - only http/https allowed");
+      return;
+    }
+  } catch {
+    console.error("Invalid URL format");
+    return;
+  }
+
   const platform = process.platform;
   let command: string;
+  let args: string[];
 
   switch (platform) {
     case "darwin":
-      command = `open "${url}"`;
+      command = "open";
+      args = [url];
       break;
     case "win32":
-      command = `start "" "${url}"`;
+      command = "cmd";
+      args = ["/c", "start", "", url];
       break;
     default:
-      command = `xdg-open "${url}"`;
+      command = "xdg-open";
+      args = [url];
   }
 
-  exec(command, (err) => {
-    if (err) {
-      console.error(`Could not open browser: ${err.message}`);
-    }
+  const child = spawn(command, args, { stdio: "ignore", detached: true });
+  child.on("error", (err) => {
+    console.error(`Could not open browser: ${err.message}`);
   });
+  child.unref();
 }
 
 export async function startServer(
@@ -272,11 +291,25 @@ export async function startServer(
       let json: string;
 
       if (requestedPath) {
-        // Read the specific file requested
-        if (!fs.existsSync(requestedPath)) {
-          return res.status(404).send(`File not found: ${requestedPath}`);
+        // Security: Validate path to prevent path traversal attacks
+        // Only allow reading files within the user's home directory or /tmp
+        const homeDir = os.homedir();
+        const resolvedPath = path.resolve(requestedPath);
+        const allowedPrefixes = [homeDir, "/tmp"];
+
+        const isAllowed = allowedPrefixes.some(prefix =>
+          resolvedPath.startsWith(prefix + path.sep) || resolvedPath === prefix
+        );
+
+        if (!isAllowed) {
+          return res.status(403).send("Access denied: path outside allowed directories");
         }
-        const content = fs.readFileSync(requestedPath, "utf-8");
+
+        // Read the specific file requested
+        if (!fs.existsSync(resolvedPath)) {
+          return res.status(404).send("File not found");
+        }
+        const content = fs.readFileSync(resolvedPath, "utf-8");
         try {
           const parsed = JSON.parse(content);
           json = JSON.stringify(parsed, null, 2);
@@ -284,7 +317,7 @@ export async function startServer(
           // If not valid JSON, show raw content
           json = content;
         }
-        configPath = requestedPath.replace(process.env.HOME || "", "~");
+        configPath = resolvedPath.replace(homeDir, "~");
       } else {
         // Fall back to current scope's config
         const config = readClaudeConfig();
@@ -292,10 +325,23 @@ export async function startServer(
         json = JSON.stringify(config, null, 2);
       }
 
+      // Security: HTML-encode output to prevent XSS
+      const escapeHtml = (str: string): string => {
+        return str
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      };
+
+      const safeConfigPath = escapeHtml(configPath);
+      const safeJson = escapeHtml(json);
+
       const html = `<!DOCTYPE html>
 <html>
 <head>
-  <title>${configPath}</title>
+  <title>${safeConfigPath}</title>
   <style>
     body {
       font-family: monospace;
@@ -316,8 +362,8 @@ export async function startServer(
   </style>
 </head>
 <body>
-  <h1>${configPath}</h1>
-  <pre>${json}</pre>
+  <h1>${safeConfigPath}</h1>
+  <pre>${safeJson}</pre>
 </body>
 </html>`;
       res.type("html").send(html);

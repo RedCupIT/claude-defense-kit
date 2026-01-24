@@ -13,7 +13,7 @@
     "dev": "ts-node src/index.ts",
     "clean": "rm -rf dist",
     "prepublishOnly": "npm run build",
-    "bundle-server": "npm run build && ncc build dist/index.js -o src-tauri/binaries --source-map && mv src-tauri/binaries/index.js src-tauri/binaries/cdk-server-$(uname -m | sed 's/arm64/aarch64-apple-darwin/' | sed 's/x86_64/x86_64-apple-darwin/') && chmod +x src-tauri/binaries/cdk-server-*",
+    "bundle-server": "npm run build && ncc build dist/index.js -o src-tauri/binaries --no-source-map-register && mv src-tauri/binaries/index.js src-tauri/binaries/cdk-server-$(uname -m | sed 's/arm64/aarch64-apple-darwin/' | sed 's/x86_64/x86_64-apple-darwin/') && chmod +x src-tauri/binaries/cdk-server-*",
     "tauri": "tauri",
     "tauri:dev": "npm run build && tauri dev",
     "tauri:build": "tauri build"
